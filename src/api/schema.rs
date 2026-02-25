@@ -29,9 +29,9 @@ pub struct Schema {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// The string value variants
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "enum")]
-    pub variants: Vec<String>,
+    pub variants: Option<HashSet<String>>,
     /// The minimum value for number
     #[serde(skip_serializing_if = "Option::is_none")]
     pub minimum: Option<f64>,
@@ -39,25 +39,24 @@ pub struct Schema {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub maximum: Option<f64>,
     /// The array items type
-    #[serde(rename = "items")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub items_schema: Option<Box<Schema>>,
+    pub items: Option<Box<Schema>>,
     /// The object properties
-    #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub properties: HashMap<String, Box<Schema>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub properties: Option<HashMap<String, Box<Schema>>>,
     /// The required object properties
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub required: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required: Option<HashSet<String>>,
     #[serde(rename = "additionalProperties")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_properties: Option<bool>,
 }
 
 impl Schema {
-    /// Creates an object schema
-    pub fn object(descr: impl Into<String>) -> Self {
+    /// Creates a new schema
+    pub fn new(kind: SchemaKind, descr: impl Into<String>) -> Self {
         Self {
-            kind: SchemaKind::Object,
+            kind,
             description: match descr.into() {
                 s if !s.is_empty() => Some(s),
                 _ => None,
@@ -67,201 +66,168 @@ impl Schema {
         }
     }
 
+    /// Creates an object schema
+    pub fn object(descr: impl Into<String>) -> Self {
+        Self::new(SchemaKind::Object, descr)
+    }
+
     /// Creates an array schema
     pub fn array(descr: impl Into<String>) -> Self {
-        Self {
-            kind: SchemaKind::Array,
-            description: match descr.into() {
-                s if !s.is_empty() => Some(s),
-                _ => None,
-            },
-            ..Default::default()
-        }
+        Self::new(SchemaKind::Array, descr)
     }
 
     /// Creates a string schema
     pub fn string(descr: impl Into<String>) -> Self {
-        Self {
-            kind: SchemaKind::String,
-            description: match descr.into() {
-                s if !s.is_empty() => Some(s),
-                _ => None,
-            },
-            ..Default::default()
-        }
+        Self::new(SchemaKind::String, descr)
     }
 
     /// Creates a number schema
     pub fn number(descr: impl Into<String>) -> Self {
-        Self {
-            kind: SchemaKind::Number,
-            description: match descr.into() {
-                s if !s.is_empty() => Some(s),
-                _ => None,
-            },
-            ..Default::default()
-        }
+        Self::new(SchemaKind::Number, descr)
     }
 
     /// Creates a integer schema
     pub fn integer(descr: impl Into<String>) -> Self {
-        Self {
-            kind: SchemaKind::Integer,
-            description: match descr.into() {
-                s if !s.is_empty() => Some(s),
-                _ => None,
-            },
-            ..Default::default()
-        }
+        Self::new(SchemaKind::Integer, descr)
     }
 
     /// Creates a boolean schema
     pub fn boolean(descr: impl Into<String>) -> Self {
-        Self {
-            kind: SchemaKind::Boolean,
-            description: match descr.into() {
-                s if !s.is_empty() => Some(s),
-                _ => None,
-            },
-            ..Default::default()
-        }
+        Self::new(SchemaKind::Boolean, descr)
     }
 
     /// Creates a null schema
     pub fn null(descr: impl Into<String>) -> Self {
-        Self {
-            kind: SchemaKind::Null,
-            description: match descr.into() {
-                s if !s.is_empty() => Some(s),
-                _ => None,
-            },
-            ..Default::default()
-        }
+        Self::new(SchemaKind::Null, descr)
     }
 
-    /// Sets string value variants
-    pub fn description(mut self, descr: impl Into<String>) -> Self {
-        self.description.replace(descr.into());
-        self
-    }
-    /// Sets string value variants
+    /// Sets schema description
     pub fn set_description(&mut self, descr: impl Into<String>) {
         self.description.replace(descr.into());
     }
-
-    /// Sets string value variants
-    pub fn variants(mut self, vars: Vec<String>) -> Self {
-        self.variants = vars;
+    /// Sets schema description
+    pub fn description(mut self, descr: impl Into<String>) -> Self {
+        self.set_description(descr);
         self
     }
-    /// Sets string value variants
-    pub fn set_variants(&mut self, vars: Vec<String>) {
-        self.variants = vars;
-    }
 
-    /// Sets the minimum number value
-    pub fn minimum(mut self, min: f64) -> Self {
-        self.minimum.replace(min);
+    /// Adds string value variants
+    pub fn set_variants(&mut self, vars: HashSet<String>) {
+        self.variants.get_or_insert_default().extend(vars);
+    }
+    /// Adds string value variants
+    pub fn variants(mut self, vars: HashSet<String>) -> Self {
+        self.set_variants(vars);
         self
     }
+
+    /// Adds string value variant
+    pub fn set_variant(&mut self, var: impl Into<String>) {
+        self.variants.get_or_insert_default().insert(var.into());
+    }
+    /// Adds string value variant
+    pub fn variant(mut self, var: impl Into<String>) -> Self {
+        self.set_variant(var);
+        self
+    }
+
     /// Sets the minimum number value
     pub fn set_minimum(&mut self, min: f64) {
         self.minimum.replace(min);
     }
-
-    /// Sets the maximum number value
-    pub fn maximum(mut self, max: f64) -> Self {
-        self.maximum.replace(max);
+    /// Sets the minimum number value
+    pub fn minimum(mut self, min: f64) -> Self {
+        self.set_minimum(min);
         self
     }
+
     /// Sets the maximum number value
     pub fn set_maximum(&mut self, max: f64) {
         self.maximum.replace(max);
     }
-
-    /// Sets the array items schema
-    pub fn items_schema(mut self, schema: Schema) -> Self {
-        self.items_schema.replace(Box::new(schema));
+    /// Sets the maximum number value
+    pub fn maximum(mut self, max: f64) -> Self {
+        self.set_maximum(max);
         self
     }
-    /// Sets the array items schema
-    pub fn set_items_schema(&mut self, schema: Schema) {
-        self.items_schema.replace(Box::new(schema));
-    }
 
-    /// Adds the object properties schema
-    pub fn properties(mut self, props: HashMap<impl Into<String>, Box<Schema>>) -> Self {
-        self.properties.extend(
-            props
-                .into_iter()
-                .map(|(k, v)| (k.into(), v))
-                .collect::<HashMap<_, _>>(),
-        );
+    /// Sets the array items schema
+    pub fn set_items(&mut self, schema: Schema) {
+        self.items.replace(Box::new(schema));
+    }
+    /// Sets the array items schema
+    pub fn items(mut self, schema: Schema) -> Self {
+        self.set_items(schema);
         self
     }
+
     /// Adds the object properties schema
     pub fn set_properties(&mut self, props: HashMap<impl Into<String>, Box<Schema>>) {
-        self.properties.extend(
-            props
-                .into_iter()
-                .map(|(k, v)| (k.into(), v))
-                .collect::<HashMap<_, _>>(),
-        );
+        self.properties
+            .get_or_insert_default()
+            .extend(props.into_iter().map(|(k, v)| (k.into(), v)));
     }
-
-    /// Adds the object property schema
-    pub fn property(mut self, name: impl Into<String>, schema: Schema, required: bool) -> Self {
-        let name = name.into();
-        if required && !self.required.contains(&name) {
-            self.required.push(name.clone());
-        }
-        self.properties.insert(name, Box::new(schema));
+    /// Adds the object properties schema
+    pub fn properties(mut self, props: HashMap<impl Into<String>, Box<Schema>>) -> Self {
+        self.set_properties(props);
         self
     }
+
     /// Adds the object property schema
     pub fn set_property(&mut self, name: impl Into<String>, schema: Schema, required: bool) {
         let name = name.into();
-        if required && !self.required.contains(&name) {
-            self.required.push(name.clone());
+        let reqs = self.required.get_or_insert_default();
+
+        if required {
+            reqs.insert(name.clone());
         }
-        self.properties.insert(name, Box::new(schema));
+        self.properties
+            .get_or_insert_default()
+            .insert(name, Box::new(schema));
+    }
+    /// Adds the object property schema
+    pub fn property(mut self, name: impl Into<String>, schema: Schema, required: bool) -> Self {
+        self.set_property(name, schema, required);
+        self
     }
 
-    /// Adds the required property schema
-    pub fn required_property(self, name: impl Into<String>, schema: Schema) -> Self {
-        self.property(name, schema, true)
-    }
     /// Adds the required property schema
     pub fn set_required_property(&mut self, name: impl Into<String>, schema: Schema) {
         self.set_property(name, schema, true);
     }
-
-    /// Adds the optional property schema
-    pub fn optional_property(self, name: impl Into<String>, schema: Schema) -> Self {
-        self.property(name, schema, false)
+    /// Adds the required property schema
+    pub fn required_property(self, name: impl Into<String>, schema: Schema) -> Self {
+        self.property(name, schema, true)
     }
+
     /// Adds the optional property schema
     pub fn set_optional_property(&mut self, name: impl Into<String>, schema: Schema) {
         self.set_property(name, schema, false);
     }
+    /// Adds the optional property schema
+    pub fn optional_property(self, name: impl Into<String>, schema: Schema) -> Self {
+        self.property(name, schema, false)
+    }
 
     /// Adds the required object properties
-    pub fn requires(mut self, reqs: Vec<impl Into<String>>) -> Self {
-        self.required.extend(reqs.into_iter().map(Into::into));
-        self
+    pub fn set_required(&mut self, reqs: Vec<impl Into<String>>) {
+        self.required
+            .get_or_insert_default()
+            .extend(reqs.into_iter().map(Into::into));
     }
     /// Adds the required object properties
-    pub fn set_requires(&mut self, reqs: Vec<impl Into<String>>) {
-        self.required.extend(reqs.into_iter().map(Into::into));
+    pub fn required(mut self, reqs: Vec<impl Into<String>>) -> Self {
+        self.set_required(reqs);
+        self
     }
 
     /// Adds the required object property
-    pub fn require(mut self, req: impl Into<String>) -> Self {
-        self.required.push(req.into());
-        self
+    pub fn set_require(&mut self, name: impl Into<String>) {
+        self.required.get_or_insert_default().insert(name.into());
     }
     /// Adds the required object property
-    pub fn set_require(&mut self, req: impl Into<String>) {
-        self.required.push(req.into());
+    pub fn require(mut self, name: impl Into<String>) -> Self {
+        self.set_require(name);
+        self
     }
 }
