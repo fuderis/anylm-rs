@@ -31,10 +31,12 @@ pub enum Error {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponseErrorMessage {
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub code: Option<u32>,
     pub message: String,
     #[serde(default)]
     #[serde(flatten)]
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub extra: HashMap<String, JsonValue>,
 }
 
@@ -60,6 +62,7 @@ pub struct ResponseError {
 #[derive(Debug, Deserialize)]
 struct ResponseSimpleError {
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub code: Option<u32>,
     pub error: String,
     #[serde(default)]
