@@ -465,46 +465,49 @@ impl Completions {
                     Ok(bytes) => {
                         let bytes_stringify = String::from_utf8_lossy(&bytes);
 
-                        // check for error:
-                        if is_openai_standart {
-                            /// The OpenAI generation error
-                            #[derive(Debug, Deserialize)]
-                            struct OpenAIError {
-                                error: String,
-                            }
+                        // check for an error:
+                        /// The LM error message
+                        #[derive(Debug, Deserialize)]
+                        struct LmErrorMessage {
+                            #[serde(default)]
+                            message: String,
+                            #[serde(default)]
+                            #[serde(flatten)]
+                            extra: Option<HashMap<String, serde_json::Value>>,
+                        }
 
-                            if let Ok(OpenAIError { error }) = json::from_str(&bytes_stringify) {
-                                tx.send(Err(Error::ResponseError(error).into())).ok();
-                            }
+                        impl LmErrorMessage {
+                            pub fn into_string(self) -> String {
+                                let mut msg = self.message;
 
-                            /// The OpenAI generation error
-                            #[derive(Debug, Deserialize)]
-                            struct OpenAIError2 {
-                                message: String,
-                            }
+                                if let Some(extra) = self.extra {
+                                    msg.push_str(": ");
+                                    msg.push_str(&json::to_string(&extra).unwrap_or_default());
+                                }
 
-                            if let Ok(OpenAIError2 { message }) = json::from_str(&bytes_stringify) {
-                                tx.send(Err(Error::ResponseError(message).into())).ok();
+                                msg
                             }
-                        } else {
-                            /// The anthropic error data
-                            #[derive(Debug, Deserialize)]
-                            struct AnthropicErrorData {
-                                message: String,
-                            }
+                        }
 
-                            /// The anthropic generation error
-                            #[derive(Debug, Deserialize)]
-                            struct AnthropicError {
-                                error: AnthropicErrorData,
-                            }
+                        /// The LM error structure
+                        #[derive(Debug, Deserialize)]
+                        struct LmError {
+                            error: LmErrorMessage,
+                        }
 
-                            if let Ok(AnthropicError {
-                                error: AnthropicErrorData { message },
-                            }) = json::from_str(&bytes_stringify)
-                            {
-                                tx.send(Err(Error::ResponseError(message).into())).ok();
+                        impl LmError {
+                            pub fn into_string(self) -> String {
+                                self.error.into_string()
                             }
+                        }
+
+                        if let Ok(error) = json::from_str::<LmError>(&bytes_stringify)
+                        {
+                            tx.send(Err(Error::ResponseError(error.into_string()).into())).ok();
+                        } else if let Ok(message) =
+                            json::from_str::<LmErrorMessage>(&bytes_stringify) && !message.message.is_empty()
+                        {
+                            tx.send(Err(Error::ResponseError(message.into_string()).into())).ok();
                         }
 
                         // else parse buffer:
