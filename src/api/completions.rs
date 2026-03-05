@@ -1,5 +1,5 @@
 use super::*;
-use crate::prelude::*;
+use crate::{error::ResponseError, prelude::*};
 use futures::StreamExt;
 use reqwest::{Client, Proxy, header};
 use std::time::Duration;
@@ -466,48 +466,9 @@ impl Completions {
                         let bytes_stringify = String::from_utf8_lossy(&bytes);
 
                         // check for an error:
-                        /// The LM error message
-                        #[derive(Debug, Deserialize)]
-                        struct LmErrorMessage {
-                            #[serde(default)]
-                            message: String,
-                            #[serde(default)]
-                            #[serde(flatten)]
-                            extra: Option<HashMap<String, serde_json::Value>>,
-                        }
-
-                        impl LmErrorMessage {
-                            pub fn into_string(self) -> String {
-                                let mut msg = self.message;
-
-                                if let Some(extra) = self.extra {
-                                    msg.push_str(": ");
-                                    msg.push_str(&json::to_string(&extra).unwrap_or_default());
-                                }
-
-                                msg
-                            }
-                        }
-
-                        /// The LM error structure
-                        #[derive(Debug, Deserialize)]
-                        struct LmError {
-                            error: LmErrorMessage,
-                        }
-
-                        impl LmError {
-                            pub fn into_string(self) -> String {
-                                self.error.into_string()
-                            }
-                        }
-
-                        if let Ok(error) = json::from_str::<LmError>(&bytes_stringify)
-                        {
-                            tx.send(Err(Error::ResponseError(error.into_string()).into())).ok();
-                        } else if let Ok(message) =
-                            json::from_str::<LmErrorMessage>(&bytes_stringify) && !message.message.is_empty()
-                        {
-                            tx.send(Err(Error::ResponseError(message.into_string()).into())).ok();
+                        if let Some(e) = ResponseError::from_str(&bytes_stringify) {
+                            tx.send(Err(Error::ResponseError(e).into())).ok();
+                            return;
                         }
 
                         // else parse buffer:

@@ -1,5 +1,5 @@
 use super::ApiKind;
-use crate::prelude::*;
+use crate::{error::ResponseError, prelude::*};
 use reqwest::{Client, Proxy, header};
 use std::time::Duration;
 
@@ -231,12 +231,19 @@ impl Embeddings {
             .header(header::AUTHORIZATION, &self.api_key)
             .json(&obj)
             .send()
-            .await?
-            .error_for_status()?
-            .json::<EmbeddingsData>()
             .await
             .map_err(Error::from)?;
 
-        Ok(response)
+        let output = response.text().await?;
+
+        // check for an error:
+        if let Some(e) = ResponseError::from_str(&output) {
+            return Err(Error::ResponseError(e).into());
+        }
+
+        // else parse response:
+        let embeddings = json::from_str(&output)?;
+
+        Ok(embeddings)
     }
 }
