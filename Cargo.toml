@@ -1,6 +1,6 @@
 [package]
 name = "anylm"
-version = "0.1.7"
+version = "0.1.8"
 description = "The universal API for all AI services that you know"
 keywords = ["lm", "api", "ai", "llm", "slm"]
 categories = ["development-tools", "rust-patterns"]
