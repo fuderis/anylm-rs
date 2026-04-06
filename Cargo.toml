@@ -1,6 +1,6 @@
 [package]
 name = "anylm"
-version = "0.1.6"
+version = "0.1.7"
 description = "The universal API for all AI services that you know"
 keywords = ["lm", "api", "ai", "llm", "slm"]
 categories = ["development-tools", "rust-patterns"]
@@ -14,7 +14,7 @@ edition = "2024"
 base64 = "0.22.1"
 bytes = "1.11.1"
 futures = "0.3.31"
-macron = { version = "0.1.14", features = ["derive", "string"] }
+macron = { version = "0.1.16", features = ["derive", "string"] }
 regex = "1.12.3"
 reqwest = { version = "0.13.2", features = ["json", "stream", "socks"] }
 serde = { version = "1.0.228", features = ["derive"] }
