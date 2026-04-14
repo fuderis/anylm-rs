@@ -1,4 +1,4 @@
-[![github]](https://github.com/fuderis/rs-anylm)&ensp;
+[![github]](https://github.com/fuderis/anylm-rs)&ensp;
 [![crates-io]](https://crates.io/crates/anylm)&ensp;
 [![docs-rs]](https://docs.rs/anylm)
 
@@ -227,7 +227,7 @@ async fn main() -> Result<()> {
 
 ## License & Credits:
 
-* **License**: Distributed under the [*MIT*](https://github.com/fuderis/rs-anylm/blob/main/LICENSE.md) license.
+* **License**: Distributed under the [*MIT*](https://github.com/fuderis/anylm-rs/blob/main/LICENSE.md) license.
 * **Contacts**:
   [*GitHub*](https://github.com/fuderis),
   [*Behance*](https://behance.net/fuderis),

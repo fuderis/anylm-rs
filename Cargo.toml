@@ -6,7 +6,7 @@ keywords = ["lm", "api", "ai", "llm", "slm"]
 categories = ["development-tools", "rust-patterns"]
 license = "MIT"
 authors = ["Bulat Sh. <t.me/fuderis>"]
-repository = "https://github.com/fuderis/rs-anylm"
+repository = "https://github.com/fuderis/anylm-rs"
 readme = "README.md"
 edition = "2024"
 
