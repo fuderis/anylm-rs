@@ -217,6 +217,22 @@ impl Completions {
         self
     }
 
+    /// Adds a messages to request
+    pub fn messages(mut self, msgs: Vec<Message>) -> Self {
+        for msg in &msgs {
+            self.tokens_count += msg.tokens_count;
+        }
+        self.messages.extend(msgs);
+        self
+    }
+    /// Adds a messages to request
+    pub fn add_messages(&mut self, msgs: Vec<Message>) {
+        for msg in &msgs {
+            self.tokens_count += msg.tokens_count;
+        }
+        self.messages.extend(msgs);
+    }
+
     /// Adds a message to request
     pub fn message(mut self, role: Role, content: Vec<Content>) -> Self {
         let msg = Message::new(role, content);
