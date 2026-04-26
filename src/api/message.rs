@@ -1,6 +1,8 @@
 use super::{Content, Role};
 use crate::{prelude::*, utils};
 
+use chrono::{DateTime, Utc};
+
 /// The request message
 #[derive(From, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[from(Bytes, "Message::user(vec![String::from_utf8_lossy(&value).into()])")]
@@ -9,7 +11,11 @@ use crate::{prelude::*, utils};
 pub struct Message {
     pub role: Role,
     pub content: Vec<Content>,
+    #[serde(default)]
     pub tokens_count: usize,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<DateTime<Utc>>,
 }
 
 impl Message {
@@ -36,6 +42,7 @@ impl Message {
             role,
             content,
             tokens_count,
+            timestamp: Some(Utc::now()),
         }
     }
 

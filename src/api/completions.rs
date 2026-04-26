@@ -336,6 +336,7 @@ impl Completions {
             for msg in messages {
                 if let Some(msg_obj) = msg.as_object_mut() {
                     msg_obj.remove("tokens_count");
+                    msg_obj.remove("timestamp");
                 }
             }
         }

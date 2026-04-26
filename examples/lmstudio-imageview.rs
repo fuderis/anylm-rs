@@ -6,7 +6,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync 
 #[tokio::main]
 async fn main() -> Result<()> {
     // send request:
-    let mut response = Completions::lmstudio("", "qwen/qwen3-vl-4b")
+    let mut response = Completions::lmstudio("", "qwen/qwen2.5-vl-7b")
         .user_message(vec![
             Path::new("test-image.png").into(),
             "What's on the picture?".into(),

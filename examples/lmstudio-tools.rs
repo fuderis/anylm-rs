@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
     }
 
     // send request:
-    let mut response = Completions::lmstudio("", "qwen/qwen3-vl-4b")
+    let mut response = Completions::lmstudio("", "qwen/qwen2.5-vl-7b")
         .user_message(vec!["What's the weather like in London?".into()])
         .tool(Tool::new(
             "weather",

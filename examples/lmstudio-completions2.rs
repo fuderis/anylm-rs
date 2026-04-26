@@ -5,7 +5,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync 
 #[tokio::main]
 async fn main() -> Result<()> {
     // send request:
-    let mut response = Completions::lmstudio("", "qwen/qwen3-vl-4b")
+    let mut response = Completions::lmstudio("", "qwen/qwen2.5-vl-7b")
         .host("http://localhost:1234")
         .user_message(vec![
             "Write a detailed article about the Rust programming language.".into(),
