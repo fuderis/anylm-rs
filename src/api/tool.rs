@@ -1,6 +1,39 @@
 use super::Schema;
 use crate::prelude::*;
 
+/// The tool call function
+#[derive(From, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub struct ToolCallFunction {
+    pub name: String,
+    #[serde(rename = "arguments")]
+    pub json_str: String,
+}
+
+impl ToolCallFunction {
+    /// Parses the function arguments
+    pub fn parse_args<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
+        Ok(serde_json::from_str(&self.json_str)?)
+    }
+}
+
+/// The tool call
+#[derive(From, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub struct ToolCall {
+    #[serde(default)]
+    pub id: String,
+    #[serde(rename = "type")]
+    pub kind: String,
+    #[serde(rename = "function")]
+    pub func: ToolCallFunction,
+}
+
+impl ToolCall {
+    /// Parses the function arguments
+    pub fn parse_args<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
+        Ok(serde_json::from_str(&self.func.json_str)?)
+    }
+}
+
 /// The tool call structure
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Tool {

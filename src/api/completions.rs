@@ -1,9 +1,9 @@
 use super::*;
-use crate::{AiOptions, prelude::*};
-use atoman::{Stream, StreamExt};
+use crate::{AiOptions, ToolCall, ToolCallFunction, chunk::*, prelude::*};
+use atoman::{Stream, StreamExt, StreamReader};
 use reqwest::{Client, Proxy, header};
-use std::time::Duration;
-use tokio::sync::mpsc;
+use std::{sync::Arc, time::Duration};
+use tokio::sync::{Mutex, mpsc};
 
 /// The completions response stream reader
 #[derive(Debug)]
@@ -29,8 +29,8 @@ impl Drop for AiStream {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AiChunk {
-    Text { text: String },
-    Tool { name: String, json_str: String },
+    Text(String),
+    Tool(ToolCall),
 }
 
 /// The LM API chat completions request
@@ -56,8 +56,6 @@ pub struct Completions {
     pub timeout: Duration,
     /// The AI model name
     pub model: String,
-    /// The request messages
-    pub messages: Vec<Message>,
     /// The maximum tokens count
     pub max_tokens: i32,
     /// The AI generation temperature
@@ -90,7 +88,6 @@ impl Completions {
             proxy: None,
             timeout: Duration::from_secs(600),
             model: model.into(),
-            messages: Vec::new(),
             max_tokens: if kind.is_anthropic() { 8096 } else { -1 },
             temperature: 0.7,
             tokens_count: 0,
@@ -202,61 +199,6 @@ impl Completions {
         self
     }
 
-    /// Adds a messages to request
-    pub fn messages(mut self, msgs: Vec<Message>) -> Self {
-        for msg in &msgs {
-            self.tokens_count += msg.tokens_count;
-        }
-        self.messages.extend(msgs);
-        self
-    }
-    /// Adds a messages to request
-    pub fn add_messages(&mut self, msgs: Vec<Message>) {
-        for msg in &msgs {
-            self.tokens_count += msg.tokens_count;
-        }
-        self.messages.extend(msgs);
-    }
-
-    /// Adds a message to request
-    pub fn message(mut self, role: Role, content: Vec<Content>) -> Self {
-        let msg = Message::new(role, content);
-        self.tokens_count += msg.tokens_count;
-        self.messages.push(msg);
-        self
-    }
-    /// Adds a system message to request
-    pub fn system_message(self, content: Vec<Content>) -> Self {
-        self.message(Role::System, content)
-    }
-    /// Adds a user message to request
-    pub fn user_message(self, content: Vec<Content>) -> Self {
-        self.message(Role::User, content)
-    }
-    /// Adds a assistant message to request
-    pub fn assistant_message(self, content: Vec<Content>) -> Self {
-        self.message(Role::Assistant, content)
-    }
-
-    /// Adds a message to request
-    pub fn add_message(&mut self, role: Role, content: Vec<Content>) {
-        let msg = Message::new(role, content);
-        self.tokens_count += msg.tokens_count;
-        self.messages.push(msg);
-    }
-    /// Adds a system message to request
-    pub fn add_system_message(&mut self, content: Vec<Content>) {
-        self.add_message(Role::System, content)
-    }
-    /// Adds a user message to request
-    pub fn add_user_message(&mut self, content: Vec<Content>) {
-        self.add_message(Role::User, content)
-    }
-    /// Adds a assistant message to request
-    pub fn add_assistant_message(&mut self, content: Vec<Content>) {
-        self.add_message(Role::Assistant, content)
-    }
-
     /// Sets the AI generation temperature
     pub fn set_temperature(&mut self, temperature: f32) {
         self.temperature = temperature;
@@ -292,7 +234,7 @@ impl Completions {
     }
 
     /// Sends the request to LM server
-    pub async fn send(&mut self) -> Result<AiStream> {
+    pub async fn send(&mut self, messages: Arc<Mutex<Messages>>) -> Result<AiStream> {
         use crate::chunk::*;
 
         // generate URL:
@@ -310,34 +252,27 @@ impl Completions {
             )
         };
 
-        // context management:
+        // validate context:
         if self.max_tokens > 0 {
-            let mut idx = 0;
-            let mut max_idx = self.messages.len() - 1;
-            let max_count = self.max_tokens as usize;
-
-            while self.tokens_count > max_count && idx < max_idx {
-                let msg = &self.messages[idx];
-                if msg.role.is_system() {
-                    idx += 1;
-                    continue;
-                }
-                self.tokens_count -= msg.tokens_count;
-                self.messages.remove(idx);
-                max_idx -= 1;
+            // check tokens count:
+            if self.tokens_count > self.max_tokens as usize {
+                return Err(Error::ContextOverflowing.into());
             }
 
-            if let Some(msg) = self.messages.last()
-                && msg.role.is_assistant()
+            // check last message:
+            let lock = messages.lock().await;
+            if let Some(msg) = lock.messages.last()
+                && !msg.role.is_user()
             {
-                return Err(Error::IncorrectContext.into());
+                return Err(Error::BadRequest.into());
             }
         }
 
         // serialize & clean data:
-        let mut data = json::to_value(&self).map_err(Error::from)?;
+        let mut data = json::to_value(&self)?;
         let data_obj = data.as_object_mut().unwrap();
         data_obj.remove("tokens_count");
+        data_obj.insert(str!("messages"), json::to_value(&*messages.lock().await)?);
         if let Some(messages) = data_obj.get_mut("messages").and_then(|v| v.as_array_mut()) {
             for msg in messages {
                 if let Some(msg_obj) = msg.as_object_mut() {
@@ -456,23 +391,40 @@ impl Completions {
         // send & spawn reader:
         let response = request.send().await?;
         let bytes_stream = response.bytes_stream().map(|r| r.map_err(Into::into));
-
-        let mut reader = Stream::read::<ResponseChunk>(bytes_stream);
+        let reader = Stream::read::<ResponseChunk>(bytes_stream);
 
         let (tx, rx) = mpsc::unbounded_channel::<Result<AiChunk>>();
-        let mut tool_buffers = HashMap::<usize, (String, String)>::new();
+        let handle = Self::spawn_reader(reader, tx, messages);
 
-        let handle = tokio::spawn(async move {
+        Ok(AiStream { rx, handle })
+    }
+
+    /// Spawns a background task to process the incoming SSE stream
+    fn spawn_reader(
+        mut reader: StreamReader<ResponseChunk>,
+        tx: mpsc::UnboundedSender<Result<AiChunk>>,
+        messages: Arc<Mutex<Messages>>,
+    ) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
+            let mut full_text = str!();
+            let mut tool_calls = vec![];
+
+            // (id, name, arguments)
+            let mut tool_buffers = HashMap::<usize, (String, String, String)>::new();
+
             loop {
+                // if client is disconnected:
                 if tx.is_closed() {
-                    break;
+                    return;
                 }
 
+                // read next chunk:
                 match reader.read().await {
                     Ok(Some(chunk)) => {
                         let mut text_output = String::new();
 
                         match chunk {
+                            // OpenAI standart:
                             ResponseChunk::OpenAi(OpenAIChunk { choices }) => {
                                 for choice in choices {
                                     if let Some(content) = choice.delta.content {
@@ -480,38 +432,52 @@ impl Completions {
                                     }
                                     if let Some(tool_calls) = choice.delta.tool_calls {
                                         for tc in tool_calls {
-                                            if let (Some(idx), Some(fn_delta)) =
-                                                (tc.index, tc.function)
-                                            {
+                                            if let Some(idx) = tc.index {
                                                 let entry = tool_buffers.entry(idx).or_default();
-                                                if let Some(name) = fn_delta.name {
-                                                    entry.0 = name;
+
+                                                if let Some(id) = tc.id {
+                                                    entry.0 = id;
                                                 }
-                                                if let Some(args) = fn_delta.arguments {
-                                                    entry.1.push_str(&args);
+
+                                                if let Some(fn_delta) = tc.function {
+                                                    if let Some(name) = fn_delta.name {
+                                                        entry.1 = name;
+                                                    }
+                                                    if let Some(args) = fn_delta.arguments {
+                                                        entry.2.push_str(&args);
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
+
+                            // Anthropic standart:
                             ResponseChunk::Anthropic(anth) => {
+                                let idx = anth.index.unwrap_or(0);
+
+                                if let Some(block) = anth.content_block {
+                                    if block.kind == "tool_use" {
+                                        let entry = tool_buffers.entry(idx).or_default();
+                                        entry.1 = block.name;
+                                        if let Some(id) = block.id {
+                                            entry.0 = id;
+                                        }
+                                    }
+                                }
+
                                 if let Some(delta) = anth.delta {
                                     if let Some(t) = delta.text {
                                         text_output.push_str(&t);
                                     }
                                     if let Some(pj) = delta.partial_json {
-                                        let idx = anth.index.unwrap_or(0);
-                                        tool_buffers.entry(idx).or_default().1.push_str(&pj);
+                                        tool_buffers.entry(idx).or_default().2.push_str(&pj);
                                     }
                                 }
-                                if let Some(block) = anth.content_block
-                                    && block.kind == "tool_use"
-                                {
-                                    let idx = anth.index.unwrap_or(0);
-                                    tool_buffers.entry(idx).or_default().0 = block.name;
-                                }
                             }
+
+                            // Google standart:
                             ResponseChunk::Google(google) => {
                                 for cand in google.candidates {
                                     if let Some(content) = cand.content {
@@ -521,59 +487,106 @@ impl Completions {
                                                     text_output.push_str(&text)
                                                 }
                                                 GeminiPart::FunctionCall { function_call } => {
-                                                    tx.send(Ok(AiChunk::Tool {
-                                                        name: function_call["name"]
-                                                            .as_str()
-                                                            .unwrap_or("")
-                                                            .to_string(),
-                                                        json_str: function_call["args"].to_string(),
-                                                    }))
-                                                    .ok();
+                                                    let tool_name = function_call.name;
+                                                    let final_id = function_call.id;
+
+                                                    let tool = ToolCall {
+                                                        id: final_id.unwrap_or_default(),
+                                                        kind: str!("function"),
+                                                        func: ToolCallFunction {
+                                                            name: tool_name,
+                                                            json_str: function_call
+                                                                .args
+                                                                .to_string(),
+                                                        },
+                                                    };
+                                                    tool_calls.push(tool.clone());
+
+                                                    if tx.send(Ok(AiChunk::Tool(tool))).is_err() {
+                                                        return;
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
+
+                            // Error
                             ResponseChunk::Error(err) => {
-                                tx.send(Err(
-                                    Error::ResponseError(ResponseError { error: err }).into()
-                                ))
-                                .ok();
+                                let _ = tx
+                                    .send(Err(
+                                        Error::ResponseError(ResponseError { error: err }).into()
+                                    ));
                                 return;
                             }
                         }
 
                         if !text_output.is_empty() {
-                            if tx.send(Ok(AiChunk::Text { text: text_output })).is_err() {
+                            full_text.push_str(&text_output);
+                            if tx.send(Ok(AiChunk::Text(text_output))).is_err() {
                                 break;
                             }
                         }
 
-                        tool_buffers.retain(|_, (name, args)| {
+                        // check buffers for tool calls:
+                        tool_buffers.retain(|_, (id, name, args)| {
                             if json::from_str::<JsonValue>(args).is_ok() {
-                                tx.send(Ok(AiChunk::Tool {
-                                    name: name.clone(),
-                                    json_str: args.clone(),
-                                }))
-                                .is_ok()
-                                    == false
+                                let tool = ToolCall {
+                                    id: id.clone(),
+                                    kind: str!("function"),
+                                    func: ToolCallFunction {
+                                        name: name.clone(),
+                                        json_str: args.clone(),
+                                    },
+                                };
+                                tool_calls.push(tool.clone());
+
+                                if tx.send(Ok(AiChunk::Tool(tool))).is_err() {
+                                    return false;
+                                }
+                                false // sent -> delete from buffer
                             } else {
-                                true
+                                true // not complete yet -> leave it in buffer
                             }
                         });
                     }
+
                     Ok(None) => break,
+
                     Err(e) => {
-                        tx.send(Err(e.into())).ok();
+                        let _ = tx.send(Err(e.into()));
                         break;
                     }
                 }
             }
-        });
 
-        Ok(AiStream { rx, handle })
+            messages
+                .lock()
+                .await
+                .add_assistant(vec![full_text.into()], tool_calls);
+        })
     }
+
+    /* /// Generates an unique id for tool call
+    fn gen_tool_id(tool_name: &str) -> String {
+        use std::hash::{Hash, Hasher};
+
+        // get system time:
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+
+        // hashing nanos and name:
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        tool_name.hash(&mut hasher);
+        nanos.hash(&mut hasher);
+        let hash_result = hasher.finish();
+
+        // formatting:
+        str!("call_{hash_result:016x}")
+    } */
 }
 
 impl TryFrom<AiOptions> for Completions {

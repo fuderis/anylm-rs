@@ -54,6 +54,15 @@ impl Content {
             detail,
         })
     }
+
+    /// Returns true if text content is empty
+    pub fn is_empty(&self) -> bool {
+        if let Self::Text { text } = self {
+            text.is_empty()
+        } else {
+            false
+        }
+    }
 }
 
 impl ::serde::Serialize for Content {

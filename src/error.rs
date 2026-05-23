@@ -13,10 +13,13 @@ pub enum Error {
     #[from]
     Request(reqwest::Error),
 
-    #[display = "Incorrect context - missing a new user request"]
-    IncorrectContext,
+    #[display = "Context is overflowing, try deleting old messages."]
+    ContextOverflowing,
 
-    #[display = "Encoded base64 string is invalid"]
+    #[display = "Bad request - missing a new user message."]
+    BadRequest,
+
+    #[display = "Base64 encoded string is invalid."]
     InvalidBase64Url,
 
     #[display = "AI-generation error: {}"]

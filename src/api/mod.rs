@@ -11,7 +11,7 @@ pub mod schema;
 pub use schema::{Schema, SchemaKind};
 
 pub mod tool;
-pub use tool::Tool;
+pub use tool::{Tool, ToolCall, ToolCallFunction};
 
 pub mod role;
 pub use role::Role;
@@ -20,4 +20,4 @@ pub mod content;
 pub use content::Content;
 
 pub mod message;
-pub use message::Message;
+pub use message::{Message, Messages, count_tokens};

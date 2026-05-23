@@ -15,7 +15,8 @@ pub mod chunk;
 pub mod api;
 pub use api::{
     AiChunk, AiStream, ApiKind, Completions, Content, Embedding, Embeddings, EmbeddingsData,
-    Message, Role, Schema, SchemaKind, Tool, Usage,
+    Message, Messages, Role, Schema, SchemaKind, Tool, ToolCall, ToolCallFunction, Usage,
+    count_tokens,
 };
 
 pub use bytes::{self, Bytes};

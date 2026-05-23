@@ -31,19 +31,19 @@ async fn main() -> Result<()> {
             AiChunk::Text { text } => {
                 eprint!("{text}");
             }
-            AiChunk::Tool { name, json_str } => {
-                tool_calls.push((name, json_str));
+            AiChunk::Tool { id, name, json_str } => {
+                tool_calls.push((id, name, json_str));
             }
         }
     }
     println!();
 
     // handle tool calls:
-    for (name, json_str) in tool_calls {
+    for (id, name, json_str) in tool_calls {
         match name.as_ref() {
             "weather" => {
                 let location: LocationData = serde_json::from_str(&json_str)?;
-                println!("Tool call: {location:#?}");
+                println!("Tool call [{id}]: {location:#?}");
             }
             _ => {}
         }

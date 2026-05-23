@@ -23,28 +23,32 @@ I was too. That's why I built `AnyLM`: learn one intuitive API once, then unleas
 * **Tool Calls**: Calling handlers with arguments for smart AI agents.
 * **Embeddings**: Text embeddings support for fast text analysis.
 * **Proxy Support**: Support for using proxy/vpn request tunneling.
-* **Is something missing?**: Write to me and I will add it too. (`Telegram`: [@fuderis](https://t.me/fuderis)).
+* **Is something missing?**: Write to me and I will add it too. (Contacts: [E-Mail](mailto:synapdrake@ya.ru)).
 
 ## Examples:
 
 ### Cerebras:
 ```rust
-use anylm::{AiChunk, Completions, Proxy, prelude::*};
+use anylm::{AiChunk, Completions, Messages, Proxy};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let api_key = std::env::var("CEREBRAS_API_KEY")?;
 
+    // prepare messages:
+    let messages = Messages::new()
+        .user(vec!["Hello, how are you doing?".into()])
+        .wrap();
+
     // send request:
     let mut response = Completions::cerebras(api_key, "llama3.1-8b")
-        //.proxy(Proxy::all("socks5://127.0.0.1:1080")?)
-        .user_message(vec!["Hello, how are you doing?".into()])
-        .send()
+        .proxy(Proxy::all("socks5://127.0.0.1:1080")?)
+        .send(messages)
         .await?;
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        if let AiChunk::Text { text } = chunk? {
+        if let AiChunk::Text(text) = chunk? {
             eprint!("{text}");
         }
     }
@@ -56,22 +60,26 @@ async fn main() -> Result<()> {
 
 ### Claude:
 ```rust
-use anylm::{AiChunk, Completions, Proxy, prelude::*};
+use anylm::{AiChunk, Completions, Messages, Proxy};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let api_key = std::env::var("ANTHROPIC_API_KEY")?;
 
+    // prepare messages:
+    let messages = Messages::new()
+        .user(vec!["Hello, how are you doing?".into()])
+        .wrap();
+
     // send request:
-    let mut response = Completions::claude(api_key, "claude-opus-4-6")
-        //.proxy(Proxy::all("socks5://127.0.0.1:1080")?)
-        .user_message(vec!["Hello, how are you doing?".into()])
-        .send()
+    let mut response = Completions::anthropic(api_key, "claude-opus-4-6")
+        .proxy(Proxy::all("socks5://127.0.0.1:1080")?)
+        .send(messages)
         .await?;
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        if let AiChunk::Text { text } = chunk? {
+        if let AiChunk::Text(text) = chunk? {
             eprint!("{text}");
         }
     }
@@ -83,23 +91,27 @@ async fn main() -> Result<()> {
 
 ### ImageView:
 ```rust
-use anylm::{AiChunk, Completions, prelude::*};
+use anylm::{AiChunk, Completions, Messages};
+use std::path::Path;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // send request:
-    let mut response = Completions::lmstudio("", "qwen/qwen3-vl-4b")
-        .host("http://localhost:1234")
-        .user_message(vec![
+    // prepare messages:
+    let messages = Messages::new()
+        .user(vec![
             Path::new("test-image.png").into(),
             "What's on the picture?".into(),
         ])
-        .send()
+        .wrap();
+
+    // send request:
+    let mut response = Completions::lmstudio("", "qwen/qwen2.5-vl-7b")
+        .send(messages)
         .await?;
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        if let AiChunk::Text { text } = chunk? {
+        if let AiChunk::Text(text) = chunk? {
             eprint!("{text}");
         }
     }
@@ -111,34 +123,39 @@ async fn main() -> Result<()> {
 
 ### Structured Output (JSON):
 ```rust
-use anylm::{AiChunk, Completions, Schema, prelude::*};
+use anylm::{AiChunk, Completions, Messages, Schema};
+
+/// The person structure
+#[allow(dead_code)]
+#[derive(Debug, serde::Deserialize)]
+struct Person {
+    first_name: String,
+    last_name: Option<String>,
+    age: u8,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    /// The person structure
-    #[derive(Debug, serde::Deserialize)]
-    struct Person {
-        first_name: String,
-        last_name: Option<String>,
-        age: u8,
-    }
+    // prepare messages:
+    let messages = Messages::new()
+        .user(vec!["John Smith, 30 years old".into()])
+        .wrap();
 
     // send request:
-    let mut response = Completions::lmstudio("", "mistralai/ministral-3-3b")
-        .user_message(vec!["John Smith, 30 years old".into()])
+    let mut response = Completions::lmstudio("", "qwen/qwen2.5-vl-7b")
         .schema(
             Schema::object("The user structure")
                 .required_property("first_name", Schema::string("The user first name"))
                 .optional_property("last_name", Schema::string("The user last name"))
                 .required_property("age", Schema::integer("The user age")),
         )
-        .send()
+        .send(messages)
         .await?;
 
     // read response stream:
     let mut json_str = String::new();
     while let Some(chunk) = response.next().await {
-        if let AiChunk::Text { text } = chunk? {
+        if let AiChunk::Text(text) = chunk? {
             json_str.push_str(&text);
         }
     }
@@ -153,51 +170,63 @@ async fn main() -> Result<()> {
 
 ### Tool Calls:
 ```rust
-use anylm::{AiChunk, Completions, Schema, Tool, prelude::*};
+use anylm::{AiChunk, Completions, Messages, Schema, Tool, ToolCall};
+
+#[allow(dead_code)]
+#[derive(Debug, serde::Deserialize)]
+struct LocationData {
+    location: String,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    /// The weather tool data
-    #[derive(Debug, serde::Deserialize)]
-    struct LocationData {
-        location: String,
-    }
+    // create messages:
+    let messages = Messages::new()
+        .system(vec!["You are a helpful assistant.".into()])
+        .user(vec!["What's the weather like in London?".into()])
+        .wrap();
 
     // send request:
     let mut response = Completions::lmstudio("", "qwen/qwen2.5-vl-7b")
-        .user_message(vec!["What's the weather like in London?".into()])
-        .tool(Tool::new("weather", "Search weather by location")
-            .required_property("location", Schema::string("The location"))
+        .tool(
+            Tool::new("weather", "Search weather by location")
+                .required_property("location", Schema::string("The location")),
         )
-        .send()
+        .send(messages.clone())
         .await?;
 
-    // read response stream:
     let mut tool_calls = vec![];
+
+    // read response chunks:
     while let Some(chunk) = response.next().await {
         match chunk? {
-            AiChunk::Text { text } => {
-                eprint!("{text}");
+            AiChunk::Text(text_part) => {
+                eprint!("{text_part}");
             }
-            AiChunk::Tool { name, json_str } => {
-                tool_calls.push((name, json_str));
+            AiChunk::Tool(tool_call) => {
+                tool_calls.push(tool_call);
             }
         }
     }
-    println!();
 
     // handle tool calls:
-    for (name, json_str) in tool_calls {
-        match name.as_ref() {
+    for ToolCall { id, func, .. } in tool_calls {
+        match func.name.as_ref() {
             "weather" => {
-                let location: LocationData = serde_json::from_str(&json_str)?;
-                println!("{location:#?}");
+                let results = get_weather(func.parse_args()?);
+                println!("{results}");
+
+                messages.lock().await.add_tool(id, vec![results.into()])
             }
             _ => {}
         }
     }
 
     Ok(())
+}
+
+fn get_weather(_loc: LocationData) -> String {
+    format!("74°F, Cloudy\n• Precipitation: 0%\n• Humidity: 64%\n• Wind: 3.11 mph")
 }
 ```
 
@@ -208,7 +237,7 @@ use anylm::{Embeddings, prelude::*};
 #[tokio::main]
 async fn main() -> Result<()> {
     // send request:
-    let response = Embeddings::lmstudio("", "nomic-ai/nomic-embed-text-v1.5")
+    let embeddings = Embeddings::lmstudio("", "nomic-ai/nomic-embed-text-v1.5")
         .input("Hello, how are you doing?")
         .send()
         .await?;

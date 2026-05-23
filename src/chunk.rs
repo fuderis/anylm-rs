@@ -34,6 +34,8 @@ pub struct OpenAIDelta {
 
 #[derive(Debug, Deserialize, Default)]
 pub struct ToolCallDelta {
+    #[serde(default)]
+    pub id: Option<String>,
     #[serde(rename = "type")]
     pub _kind: Option<String>,
     #[serde(default)]
@@ -73,6 +75,8 @@ pub struct AnthropicDelta {
 
 #[derive(Debug, Deserialize)]
 pub struct ContentBlock {
+    #[serde(default)]
+    pub id: Option<String>,
     #[serde(rename = "type")]
     pub kind: String,
     pub name: String,
@@ -103,8 +107,21 @@ pub struct GeminiContent {
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub enum GeminiPart {
-    Text { text: String },
-    FunctionCall { function_call: JsonValue },
+    Text {
+        text: String,
+    },
+    FunctionCall {
+        #[serde(rename = "functionCall")]
+        function_call: GeminiFunctionCall,
+    },
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct GeminiFunctionCall {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub name: String,
+    pub args: JsonValue,
 }
 
 //       ERROR
