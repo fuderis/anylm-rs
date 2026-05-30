@@ -18,7 +18,7 @@ async fn main() -> Result<()> {
         .wrap();
 
     // send request:
-    let mut response = Completions::lmstudio("", "qwen/qwen2.5-vl-7b")
+    let mut response = Completions::lmstudio("", "qwen/qwen3-vl-4b")
         .tool(
             Tool::new("weather", "Search weather by location")
                 .required_property("location", Schema::string("The location")),

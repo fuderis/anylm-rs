@@ -18,7 +18,7 @@ async fn main() -> Result<()> {
         .wrap();
 
     // send request:
-    let mut response = Completions::lmstudio("", "qwen/qwen2.5-vl-7b")
+    let mut response = Completions::lmstudio("", "qwen/qwen3-vl-4b")
         .tool(serde_json::from_str(
             r#"{
                 "name": "weather",
