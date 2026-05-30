@@ -10,7 +10,7 @@ async fn main() -> Result<()> {
         .wrap();
 
     // send request:
-    let mut response = Completions::lmstudio("", "qwen/qwen2.5-vl-7b")
+    let mut response = Completions::lmstudio("", "qwen/qwen3-vl-4b")
         .host("http://localhost:1234")
         .send(messages)
         .await?;

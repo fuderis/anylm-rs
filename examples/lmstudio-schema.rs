@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
         .wrap();
 
     // send request:
-    let mut response = Completions::lmstudio("", "qwen/qwen2.5-vl-7b")
+    let mut response = Completions::lmstudio("", "qwen/qwen3-vl-4b")
         .schema(
             Schema::object("The user structure")
                 .required_property("first_name", Schema::string("The user first name"))

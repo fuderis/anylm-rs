@@ -62,7 +62,7 @@ pub struct Schema {
     pub description: Option<String>,
     /// The string value variants
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "enum")]
+    #[serde(alias = "enum")]
     pub variants: Option<HashSet<String>>,
     /// The minimum value for number
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -281,6 +281,11 @@ impl Schema {
     /// Recursively purging the `optional` field and filling in the `required` field
     pub fn sanitize_json_schema(value: &mut JsonValue) {
         if let Some(obj) = value.as_object_mut() {
+            // renaming `variants` field into `enum`:
+            if let Some(variants_value) = obj.remove("variants") {
+                obj.insert("enum".to_string(), variants_value);
+            }
+
             // handling nesting in items (for arrays):
             if let Some(items) = obj.get_mut("items") {
                 Self::sanitize_json_schema(items);

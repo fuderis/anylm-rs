@@ -40,6 +40,8 @@ pub struct Tool {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    parameters: Option<Schema>,
     #[serde(skip_serializing_if = "HashMap::is_empty", default)]
     properties: HashMap<String, Schema>,
 }
@@ -53,6 +55,7 @@ impl Tool {
                 s if !s.is_empty() => Some(s),
                 _ => None,
             },
+            parameters: None,
             properties: HashMap::new(),
         }
     }
@@ -112,14 +115,19 @@ impl Tool {
 impl Tool {
     /// Converts into valid JSON-format
     pub fn to_json_tool(&self) -> Result<JsonValue> {
-        let mut parameters_schema = Schema::object("");
+        // init parameters field (or create new):
+        let mut parameters_schema = match &self.parameters {
+            Some(custom_schema) => custom_schema.clone(),
+            None => Schema::object(""),
+        };
 
+        // push properties into parameters:
         for (name, schema) in &self.properties {
             let is_required = !schema.optional.unwrap_or(true);
             parameters_schema = parameters_schema.property(name, schema.clone(), is_required);
         }
 
-        // plug for empty parameters:
+        // fix parameters schema (if no properties):
         let has_props = parameters_schema
             .properties
             .as_ref()
@@ -130,16 +138,16 @@ impl Tool {
             parameters_schema = parameters_schema.optional_property("_", Schema::null(""));
         }
 
-        // serializing raw tool:
+        // serializing raw structure:
         let mut v = serde_json::to_value(self)?;
 
-        // removing properties field:
+        // converting into correct API format:
         if let Some(obj) = v.as_object_mut() {
             obj.remove("properties");
 
-            // serializing parameters & insert it:
             let mut params_json = serde_json::to_value(parameters_schema)?;
             Schema::sanitize_json_schema(&mut params_json);
+
             obj.insert("parameters".to_string(), params_json);
         }
 
