@@ -28,7 +28,7 @@ checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
 
 [[package]]
 name = "anylm"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "atoman",
  "base64",
@@ -55,9 +55,9 @@ dependencies = [
 
 [[package]]
 name = "atoman"
-version = "0.2.20"
+version = "0.2.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "785e46778c9c3e5e489a1e649f468b6abd12cd9ecc29d264e934890afe4b20f7"
+checksum = "ce2fc5fdd739f5fbe52d502bfc3cd1b074ea4952683cf7b2781be23bb8a447cb"
 dependencies = [
  "arc-swap",
  "bytes",
