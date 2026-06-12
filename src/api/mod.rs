@@ -17,7 +17,10 @@ pub mod role;
 pub use role::Role;
 
 pub mod content;
-pub use content::Content;
+pub use content::{Content, Image};
 
 pub mod message;
-pub use message::{Message, Messages, count_tokens};
+pub use message::{Message, count_tokens};
+
+pub mod messages;
+pub use messages::Messages;

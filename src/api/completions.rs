@@ -409,16 +409,14 @@ impl Completions {
             let mut full_text = str!();
             let mut tool_calls = vec![];
 
-            // (id, name, arguments)
+            let mut allocated_tool_ids = vec![];
             let mut tool_buffers = HashMap::<usize, (String, String, String)>::new();
 
             loop {
-                // if client is disconnected:
                 if tx.is_closed() {
                     return;
                 }
 
-                // read next chunk:
                 match reader.read().await {
                     Ok(Some(chunk)) => {
                         let mut text_output = String::new();
@@ -430,15 +428,14 @@ impl Completions {
                                     if let Some(content) = choice.delta.content {
                                         text_output.push_str(&content);
                                     }
+
                                     if let Some(tool_calls) = choice.delta.tool_calls {
                                         for tc in tool_calls {
                                             if let Some(idx) = tc.index {
                                                 let entry = tool_buffers.entry(idx).or_default();
-
                                                 if let Some(id) = tc.id {
                                                     entry.0 = id;
                                                 }
-
                                                 if let Some(fn_delta) = tc.function {
                                                     if let Some(name) = fn_delta.name {
                                                         entry.1 = name;
@@ -488,10 +485,13 @@ impl Completions {
                                                 }
                                                 GeminiPart::FunctionCall { function_call } => {
                                                     let tool_name = function_call.name;
-                                                    let final_id = function_call.id;
+                                                    let final_id =
+                                                        function_call.id.unwrap_or_default();
+
+                                                    allocated_tool_ids.push(final_id.clone());
 
                                                     let tool = ToolCall {
-                                                        id: final_id.unwrap_or_default(),
+                                                        id: final_id,
                                                         kind: str!("function"),
                                                         func: ToolCallFunction {
                                                             name: tool_name,
@@ -500,6 +500,7 @@ impl Completions {
                                                                 .to_string(),
                                                         },
                                                     };
+
                                                     tool_calls.push(tool.clone());
 
                                                     if tx.send(Ok(AiChunk::Tool(tool))).is_err() {
@@ -512,7 +513,6 @@ impl Completions {
                                 }
                             }
 
-                            // Error
                             ResponseChunk::Error(err) => {
                                 let _ = tx
                                     .send(Err(
@@ -529,9 +529,11 @@ impl Completions {
                             }
                         }
 
-                        // check buffers for tool calls:
+                        // filtering tool buffers:
                         tool_buffers.retain(|_, (id, name, args)| {
                             if json::from_str::<JsonValue>(args).is_ok() {
+                                allocated_tool_ids.push(id.clone());
+
                                 let tool = ToolCall {
                                     id: id.clone(),
                                     kind: str!("function"),
@@ -540,20 +542,20 @@ impl Completions {
                                         json_str: args.clone(),
                                     },
                                 };
+
                                 tool_calls.push(tool.clone());
 
                                 if tx.send(Ok(AiChunk::Tool(tool))).is_err() {
                                     return false;
                                 }
-                                false // sent -> delete from buffer
+                                false
                             } else {
-                                true // not complete yet -> leave it in buffer
+                                true
                             }
                         });
                     }
 
                     Ok(None) => break,
-
                     Err(e) => {
                         let _ = tx.send(Err(e.into()));
                         break;
@@ -561,10 +563,13 @@ impl Completions {
                 }
             }
 
-            messages
-                .lock()
-                .await
-                .add_assistant(vec![full_text.into()], tool_calls);
+            // sync messages:
+            let mut lock = messages.lock().await;
+
+            lock.add_assistant(vec![full_text.into()], tool_calls);
+            for id in allocated_tool_ids {
+                lock.push_str(Some(&id), "");
+            }
         })
     }
 
