@@ -297,39 +297,43 @@ impl Messages {
         if pairs_count > 0 {
             // slice from start:
             let mut inside_pair = false;
-            for (idx, msg) in self.messages.iter().enumerate() {
+            for idx in 0..self.messages.len() {
+                let msg = &self.messages[idx];
                 if msg.role == Role::System {
                     continue;
                 }
 
                 if msg.role == Role::User {
+                    if inside_pair {
+                        found_pairs += 1;
+                        if found_pairs >= target_pairs {
+                            break;
+                        }
+                    }
                     inside_pair = true;
                 }
+
                 if inside_pair {
                     keep_flags[idx] = false;
-                }
-                if msg.role == Role::Assistant && inside_pair {
-                    found_pairs += 1;
-                    inside_pair = false;
-                    if found_pairs >= target_pairs {
-                        break;
-                    }
                 }
             }
         } else {
             // slice from end:
             let mut inside_pair = false;
-            for (idx, msg) in self.messages.iter().enumerate().rev() {
+            for idx in (0..self.messages.len()).rev() {
+                let msg = &self.messages[idx];
                 if msg.role == Role::System {
                     continue;
                 }
 
-                if msg.role == Role::Assistant {
+                if msg.role == Role::Assistant || msg.role == Role::Tool {
                     inside_pair = true;
                 }
+
                 if inside_pair {
                     keep_flags[idx] = false;
                 }
+
                 if msg.role == Role::User && inside_pair {
                     found_pairs += 1;
                     inside_pair = false;
