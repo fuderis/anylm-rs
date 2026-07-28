@@ -5,9 +5,9 @@ use chrono::{DateTime, Utc};
 
 /// The request message
 #[derive(From, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
-#[from(Bytes, "Message::user(vec![String::from_utf8_lossy(&value).into()])")]
-#[from(String, "Message::user(vec![value.into()])")]
-#[from(&str, "Message::user(vec![value.into()])")]
+#[from(Bytes, expr = Message::user(vec![String::from_utf8_lossy(&value).into()]))]
+#[from(String, expr = Message::user(vec![value.into()]))]
+#[from(&str, expr = Message::user(vec![value.into()]))]
 pub struct Message {
     pub role: Role,
     pub content: Vec<Content>,

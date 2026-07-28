@@ -152,7 +152,7 @@ impl std::fmt::Display for ResponseErrorMessage {
 
 /// The LM error structure
 #[derive(Debug, Display, Serialize, Deserialize)]
-#[display = "{error}"]
+#[display(fmt = "{error}")]
 pub struct ResponseError {
     pub error: ResponseErrorMessage,
 }

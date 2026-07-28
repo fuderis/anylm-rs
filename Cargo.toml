@@ -1,6 +1,6 @@
 [package]
 name = "anylm"
-version = "0.1.25"
+version = "0.1.26"
 description = "The universal API for all AI services that you know"
 keywords = ["lm", "api", "ai", "llm", "slm"]
 categories = ["development-tools", "rust-patterns"]
@@ -12,7 +12,7 @@ edition = "2024"
 
 [dependencies]
 atoman = { version = "0.2.24", features = ["stream"] }
-macron = { version = "0.1.18", features = ["derive", "string"] }
+macron = { version = "0.4.3", features = ["derive", "string"] }
 base64 = "0.22.1"
 bytes = "1.11.1"
 chrono = { version = "0.4.44", features = ["serde"] }

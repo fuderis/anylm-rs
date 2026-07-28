@@ -1,7 +1,19 @@
 use super::ApiKind;
 use crate::{AiOptions, chunk::ResponseError, prelude::*};
+
 use reqwest::{Client, Proxy, header};
 use std::time::Duration;
+
+/// The embedding search optimization
+#[derive(Debug, Display, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub enum EmbeddingSearch {
+    /// Uses for save context
+    #[display(fmt = "search_document")]
+    Document,
+    /// Uses for search context
+    #[display(fmt = "search_query")]
+    Query,
+}
 
 /// The embeddings usage info
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -51,6 +63,9 @@ pub struct Embeddings {
     pub model: String,
     /// The input texts
     pub input: Vec<String>,
+    /// The embedding search type optimization
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub search: Option<EmbeddingSearch>,
 }
 
 impl Embeddings {
@@ -73,6 +88,7 @@ impl Embeddings {
             timeout: Duration::from_secs(30),
             model: model.into(),
             input: Vec::new(),
+            search: None,
         }
     }
 
@@ -181,6 +197,22 @@ impl Embeddings {
     pub fn input(mut self, input: impl Into<String>) -> Self {
         self.input.push(input.into());
         self
+    }
+
+    /// Sets the embedding search type optimization
+    pub fn search(mut self, search: EmbeddingSearch) -> Self {
+        self.search = Some(search);
+        self
+    }
+
+    /// Shortcut to set search optimization to Document
+    pub fn document(self) -> Self {
+        self.search(EmbeddingSearch::Document)
+    }
+
+    /// Shortcut to set search optimization to Query
+    pub fn query(self) -> Self {
+        self.search(EmbeddingSearch::Query)
     }
 
     /// Sends the request to LM server

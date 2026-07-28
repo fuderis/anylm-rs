@@ -10,17 +10,20 @@ pub struct Image {
 
 /// The message content
 #[derive(From, Debug, Clone, Eq, PartialEq)]
-#[from(Bytes, "Content::text(String::from_utf8_lossy(&value))")]
-#[from(String, "Content::text(value)")]
-#[from(&str, "Content::text(value)")]
-#[from(Cow<'_, str>, "Content::text(value)")]
-#[from(&Path, "Content::image_file(value, None).unwrap()")]
-#[from(PathBuf, "Content::image_file(value, None).unwrap()")]
+#[from(Bytes, expr = Content::text(String::from_utf8_lossy(&value)))]
+#[from(String, with = Content::text)]
+#[from(&str, with = Content::text)]
+#[from(Cow<'_, str>, with = Content::text)]
+#[from(&Path, expr = Content::image_file(value, None).unwrap())]
+#[from(PathBuf, expr = Content::image_file(value, None).unwrap())]
 pub enum Content {
+    #[from(skip)]
     Text {
         /// The message text
         text: String,
     },
+
+    #[from(skip)]
     Image {
         /// The image base64 url
         image: Image,
