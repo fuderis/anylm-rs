@@ -1,25 +1,28 @@
-use anylm::{AiChunk, Completions, Messages, Proxy};
+use anylm::{
+    api::Messages,
+    completions::{Chunk, Completions},
+};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let api_key = std::env::var("ANTHROPIC_API_KEY")?;
-
-    // prepare messages:
+    // prepare messages
     let messages = Messages::new()
         .user(vec!["Hello, how are you doing?".into()])
         .wrap();
 
-    // send request:
-    let mut response = Completions::anthropic(api_key, "claude-opus-4-6")
-        .proxy(Proxy::all("socks5://127.0.0.1:1080")?)
+    // send request
+    let mut response = Completions::openai()
+        .base_url("https://routerai.ru/api")
+        .read_key("ROUTERAI_API_KEY")?
+        .model("qwen/qwen3-coder-plus")
         .send(messages)
         .await?;
 
-    // read response stream:
+    // read response stream
     while let Some(chunk) = response.next().await {
-        if let AiChunk::Text(text) = chunk? {
+        if let Chunk::Text(text) = chunk? {
             eprint!("{text}");
         }
     }

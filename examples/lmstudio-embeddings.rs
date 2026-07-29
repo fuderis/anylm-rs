@@ -1,12 +1,12 @@
-use anylm::Embeddings;
-
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
+use anylm::embeddings::Embeddings;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     // 1. Indexing: Save user music preferences into the vector database
-    let doc_vector = Embeddings::lmstudio("", "nomic-ai/nomic-embed-text-v1.5")
-        .input("Loves classical piano, ambient, and Ludovico Einaudi.")
+    let doc_vector = Embeddings::openai()
+        .base_url("http://127.0.0.1:1234")
+        .model("nomic-ai/nomic-embed-text-v1.5")
+        .input("Loves classical piano music by Ludovico Einaudi.")
         .document() // storage optimization
         .send()
         .await?;
@@ -17,8 +17,10 @@ async fn main() -> Result<()> {
     );
 
     // 2. Retrieval: Search context when user requests music playback
-    let query_vector = Embeddings::lmstudio("", "nomic-ai/nomic-embed-text-v1.5")
-        .input("Play my favorite music!")
+    let query_vector = Embeddings::openai()
+        .base_url("http://127.0.0.1:1234")
+        .model("nomic-ai/nomic-embed-text-v1.5")
+        .input("Play my lovely music!")
         .query() // search optimization
         .send()
         .await?;

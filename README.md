@@ -14,7 +14,7 @@ I was too. That's why I built `AnyLM`: learn one intuitive API once, then unleas
 
 ## Supported:
 
-* **Standarts**: Supported `OpenAI` and `Anthropic` API standarts (what 90% of AI uses).
+* **Standards**: Supported `OpenAI` and `Anthropic` API standarts (what 90% of AI uses).
 * **Services**: `LM Studio`, `ChatGPT`, `Cerebras`, `OpenRouter`, `Perplexity`, `Claude` and `Voyage`.
 * **Stream Response**: Allows you to read the LM response in parts without waiting for the full completion.
 * **Context Control**: Automatic trimming of the dialog context when exceeding the token limits.
@@ -27,28 +27,31 @@ I was too. That's why I built `AnyLM`: learn one intuitive API once, then unleas
 
 ## Examples:
 
-### Cerebras:
+### LM Studio (OpenAI Standard):
+
 ```rust
-use anylm::{AiChunk, Completions, Messages, Proxy};
+use anylm::{
+    api::Messages,
+    completions::{Chunk, Completions},
+};
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    let api_key = std::env::var("CEREBRAS_API_KEY")?;
-
+async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     // prepare messages:
     let messages = Messages::new()
         .user(vec!["Hello, how are you doing?".into()])
         .wrap();
 
     // send request:
-    let mut response = Completions::cerebras(api_key, "llama3.1-8b")
-        .proxy(Proxy::all("socks5://127.0.0.1:1080")?)
+    let mut response = Completions::openai()
+        .base_url("http://127.0.0.1:1234")
+        .model("qwen/qwen3-vl-4b")
         .send(messages)
         .await?;
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        if let AiChunk::Text(text) = chunk? {
+        if let Chunk::Text(text) = chunk? {
             eprint!("{text}");
         }
     }
@@ -58,28 +61,33 @@ async fn main() -> Result<()> {
 }
 ```
 
-### Claude:
+### Claude (Anthropic Standard):
+
 ```rust
-use anylm::{AiChunk, Completions, Messages, Proxy};
+use anylm::{
+    api::Messages,
+    completions::{Chunk, Completions},
+    Proxy,
+};
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    let api_key = std::env::var("ANTHROPIC_API_KEY")?;
-
+async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     // prepare messages:
     let messages = Messages::new()
         .user(vec!["Hello, how are you doing?".into()])
         .wrap();
 
     // send request:
-    let mut response = Completions::anthropic(api_key, "claude-opus-4-6")
+    let mut response = Completions::anthropic()
+        .model("claude-opus-4-6")
+        .read_key("ANTHROPIC_API_KEY")?
         .proxy(Proxy::all("socks5://127.0.0.1:1080")?)
         .send(messages)
         .await?;
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        if let AiChunk::Text(text) = chunk? {
+        if let Chunk::Text(text) = chunk? {
             eprint!("{text}");
         }
     }
@@ -90,12 +98,16 @@ async fn main() -> Result<()> {
 ```
 
 ### ImageView:
+
 ```rust
-use anylm::{AiChunk, Completions, Messages};
+use anylm::{
+    api::Messages,
+    completions::{Chunk, Completions},
+};
 use std::path::Path;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     // prepare messages:
     let messages = Messages::new()
         .user(vec![
@@ -105,13 +117,15 @@ async fn main() -> Result<()> {
         .wrap();
 
     // send request:
-    let mut response = Completions::lmstudio("", "qwen/qwen2.5-vl-7b")
+    let mut response = Completions::openai()
+        .base_url("http://127.0.0.1:1234")
+        .model("qwen/qwen3-vl-4b")
         .send(messages)
         .await?;
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        if let AiChunk::Text(text) = chunk? {
+        if let Chunk::Text(text) = chunk? {
             eprint!("{text}");
         }
     }
@@ -122,8 +136,12 @@ async fn main() -> Result<()> {
 ```
 
 ### Structured Output (JSON):
+
 ```rust
-use anylm::{AiChunk, Completions, Messages, Schema};
+use anylm::{
+    api::{Messages, Schema},
+    completions::{Chunk, Completions},
+};
 
 /// The person structure
 #[allow(dead_code)]
@@ -135,14 +153,16 @@ struct Person {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     // prepare messages:
     let messages = Messages::new()
         .user(vec!["John Smith, 30 years old".into()])
         .wrap();
 
     // send request:
-    let mut response = Completions::lmstudio("", "qwen/qwen2.5-vl-7b")
+    let mut response = Completions::openai()
+        .base_url("http://127.0.0.1:1234")
+        .model("qwen/qwen2.5-vl-7b")
         .schema(
             Schema::object("The user structure")
                 .required_property("first_name", Schema::string("The user first name"))
@@ -155,7 +175,7 @@ async fn main() -> Result<()> {
     // read response stream:
     let mut json_str = String::new();
     while let Some(chunk) = response.next().await {
-        if let AiChunk::Text(text) = chunk? {
+        if let Chunk::Text(text) = chunk? {
             json_str.push_str(&text);
         }
     }
@@ -169,8 +189,12 @@ async fn main() -> Result<()> {
 ```
 
 ### Tool Calls:
+
 ```rust
-use anylm::{AiChunk, Completions, Messages, Schema, Tool, ToolCall};
+use anylm::{
+    api::{Messages, Schema, Tool, ToolCall},
+    completions::{Chunk, Completions},
+};
 
 #[allow(dead_code)]
 #[derive(Debug, serde::Deserialize)]
@@ -179,7 +203,7 @@ struct LocationData {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     // create messages:
     let messages = Messages::new()
         .system(vec!["You are a helpful assistant.".into()])
@@ -187,7 +211,9 @@ async fn main() -> Result<()> {
         .wrap();
 
     // send request:
-    let mut response = Completions::lmstudio("", "qwen/qwen2.5-vl-7b")
+    let mut response = Completions::openai()
+        .base_url("http://127.0.0.1:1234")
+        .model("qwen/qwen2.5-vl-7b")
         .tool(
             Tool::new("weather", "Search weather by location")
                 .required_property("location", Schema::string("The location")),
@@ -200,10 +226,10 @@ async fn main() -> Result<()> {
     // read response chunks:
     while let Some(chunk) = response.next().await {
         match chunk? {
-            AiChunk::Text(text_part) => {
+            Chunk::Text(text_part) => {
                 eprint!("{text_part}");
             }
-            AiChunk::Tool(tool_call) => {
+            Chunk::Tool(tool_call) => {
                 tool_calls.push(tool_call);
             }
         }
@@ -231,14 +257,17 @@ fn get_weather(_loc: LocationData) -> String {
 ```
 
 ### Embeddings:
+
 ```rust
-use anylm::Embeddings;
+use anylm::embeddings::Embeddings;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     // 1. Indexing: Save user music preferences into the vector database
-    let doc_vector = Embeddings::lmstudio("", "nomic-ai/nomic-embed-text-v1.5")
-        .input("Loves classical piano, ambient, and Ludovico Einaudi.")
+    let doc_vector = Embeddings::openai()
+        .base_url("http://127.0.0.1:1234")
+        .model("nomic-ai/nomic-embed-text-v1.5")
+        .input("Loves classical piano music by Ludovico Einaudi.")
         .document() // storage optimization
         .send()
         .await?;
@@ -249,8 +278,10 @@ async fn main() -> Result<()> {
     );
 
     // 2. Retrieval: Search context when user requests music playback
-    let query_vector = Embeddings::lmstudio("", "nomic-ai/nomic-embed-text-v1.5")
-        .input("Play my favorite music!")
+    let query_vector = Embeddings::openai()
+        .base_url("http://127.0.0.1:1234")
+        .model("nomic-ai/nomic-embed-text-v1.5")
+        .input("Play my lovely music!")
         .query() // search optimization
         .send()
         .await?;
@@ -268,7 +299,7 @@ async fn main() -> Result<()> {
 
 ## License & Feedback:
 
-> This library distributed under the [MIT](https://github.com/fuderis/anylm-rs/blob/main/LICENSE.md) license.
+> This library is distributed under the [MIT](https://github.com/fuderis/anylm-rs/blob/main/LICENSE.md) license.
 
-You can contact me via [GitHub](https://github.com/fuderis) or send a message to my [E-Mail](mailto:synapdrake@ya.ru).
-This library is actively evolving, and your suggestions and feedback are always welcome!
+You can contact me via [GitHub](https://github.com/fuderis) or send a message to my [E-Mail](mailto:synapdrake@ya.ru).<br>
+Contributions, bug reports, feature requests, and feedback are always welcome.

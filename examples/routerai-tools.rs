@@ -1,6 +1,7 @@
-use anylm::{AiChunk, Completions, Messages, Proxy, Schema, Tool, ToolCall};
-
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
+use anylm::{
+    api::{Messages, Schema, Tool, ToolCall},
+    completions::{Chunk, Completions},
+};
 
 /// The weather tool data
 #[allow(dead_code)]
@@ -10,10 +11,7 @@ struct LocationData {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    // read api key:
-    let api_key = std::env::var("OPENROUTER_API_KEY")?;
-
+async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     // create messages:
     let messages = Messages::new()
         .system(vec!["You are a helpful assistant.".into()])
@@ -21,8 +19,10 @@ async fn main() -> Result<()> {
         .wrap();
 
     // send request:
-    let mut response = Completions::openrouter(api_key, "qwen/qwen3-vl-30b-a3b-thinking")
-        .proxy(Proxy::all("socks5://127.0.0.1:1080")?)
+    let mut response = Completions::openai()
+        .base_url("https://routerai.ru/api")
+        .read_key("ROUTERAI_API_KEY")?
+        .model("qwen/qwen3-coder-plus")
         .tool(
             Tool::new("weather", "Search weather by location")
                 .required_property("location", Schema::string("The location")),
@@ -35,14 +35,15 @@ async fn main() -> Result<()> {
     // read response chunks:
     while let Some(chunk) = response.next().await {
         match chunk? {
-            AiChunk::Text(text_part) => {
+            Chunk::Text(text_part) => {
                 eprint!("{text_part}");
             }
-            AiChunk::Tool(tool_call) => {
+            Chunk::Tool(tool_call) => {
                 tool_calls.push(tool_call);
             }
         }
     }
+    // dbg!(&tool_calls); // DEBUG
 
     // handle tool calls:
     for ToolCall { id, func, .. } in tool_calls {
@@ -56,8 +57,7 @@ async fn main() -> Result<()> {
             _ => {}
         }
     }
-
-    // dbg!(&messages);
+    // dbg!(&messages); // DEBUG
 
     Ok(())
 }

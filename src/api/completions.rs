@@ -1,20 +1,21 @@
 use super::*;
-use crate::{AiOptions, ToolCall, ToolCallFunction, chunk::*, prelude::*};
-use atoman::{Stream, StreamExt, StreamReader};
+use crate::{ToolCall, ToolCallFunction, chunk::*, options::Options, prelude::*};
+
+use atoman::{StreamExt, StreamReader, StreamReader};
 use reqwest::{Client, Proxy, header};
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::{Mutex, mpsc};
 
 /// The completions response stream reader
 #[derive(Debug)]
 pub struct AiStream {
-    rx: mpsc::UnboundedReceiver<Result<AiChunk>>,
+    rx: mpsc::UnboundedReceiver<Result<Chunk>>,
     handle: tokio::task::JoinHandle<()>,
 }
 
 impl AiStream {
     /// Read a next completions response chunk
-    pub async fn next(&mut self) -> Option<Result<AiChunk>> {
+    pub async fn next(&mut self) -> Option<Result<Chunk>> {
         self.rx.recv().await
     }
 }
@@ -28,50 +29,49 @@ impl Drop for AiStream {
 /// The completions response chunk
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum AiChunk {
+pub enum Chunk {
     Text(String),
     Tool(ToolCall),
 }
 
-/// The LM API chat completions request
+/// Helper buffer for accumulating streaming tool calls
+#[derive(Default, Debug)]
+struct PartialToolCall {
+    id: String,
+    name: String,
+    args_buf: String,
+}
+
+// ============================================================================
+// BASE COMPLETIONS STRUCT
+// ============================================================================
+
+/// Base configuration for LM API chat completions
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Completions {
-    /// The API standart
     #[serde(skip)]
     pub api_kind: ApiKind,
-    /// The API version
     #[serde(skip)]
     pub api_version: Option<String>,
-    /// The API authorization key
     #[serde(skip)]
     pub api_key: String,
-    /// The custom server host
     #[serde(skip)]
     pub host: Option<String>,
-    /// The proxy tunnel settings
     #[serde(skip)]
     pub proxy: Option<Proxy>,
-    /// The connection timeout
     #[serde(skip)]
     pub timeout: Duration,
-    /// The AI model name
     pub model: String,
-    /// The maximum tokens count
     pub max_tokens: i32,
-    /// The AI generation temperature
     pub temperature: f32,
-    /// The response schema
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema: Option<Schema>,
-    /// The tool calls
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<Tool>,
-    /// The summary tokens count
     pub tokens_count: usize,
 }
 
 impl Completions {
-    /// Creates a new LM chat completions request
     pub fn new(kind: ApiKind, key: impl Into<String>, model: impl Into<String>) -> Self {
         Self {
             host: if kind.is_lmstudio() {
@@ -97,151 +97,62 @@ impl Completions {
         }
     }
 
-    /// Sets the API version
-    pub fn version(mut self, version: impl Into<String>) -> Self {
-        self.api_version = Some(version.into());
-        self
-    }
-    /// Sets the API version
-    pub fn set_version(&mut self, version: impl Into<String>) {
-        self.api_version = Some(version.into());
+    // Constructors for specialized types
+    pub fn openai(key: impl Into<String>, model: impl Into<String>) -> OpenAiCompletions {
+        OpenAiCompletions(Self::new(ApiKind::OpenAI, key, model))
     }
 
-    /// Creates a new OpenAI (ChatGPT) request
-    pub fn openai(key: impl Into<String>, model: impl Into<String>) -> Self {
-        Self::new(ApiKind::OpenAI, key, model)
+    pub fn anthropic(key: impl Into<String>, model: impl Into<String>) -> AnthropicCompletions {
+        AnthropicCompletions(Self::new(ApiKind::Anthropic, key, model))
     }
 
-    /// Creates a new Anthropic (Claude) request
-    pub fn anthropic(key: impl Into<String>, model: impl Into<String>) -> Self {
-        Self::new(ApiKind::Anthropic, key, model)
+    pub fn google(key: impl Into<String>, model: impl Into<String>) -> GoogleCompletions {
+        GoogleCompletions(Self::new(ApiKind::Google, key, model))
     }
 
-    /// Creates a new LM Studio request
-    pub fn lmstudio(key: impl Into<String>, model: impl Into<String>) -> Self {
-        Self::new(ApiKind::LmStudio, key, model)
+    pub fn lmstudio(key: impl Into<String>, model: impl Into<String>) -> OpenAiCompletions {
+        OpenAiCompletions(Self::new(ApiKind::LmStudio, key, model))
     }
 
-    /// Creates a new ChatGPT request
-    pub fn chatgpt(key: impl Into<String>, model: impl Into<String>) -> Self {
-        Self::new(ApiKind::ChatGpt, key, model)
+    pub fn chatgpt(key: impl Into<String>, model: impl Into<String>) -> OpenAiCompletions {
+        OpenAiCompletions(Self::new(ApiKind::ChatGpt, key, model))
     }
 
-    /// Creates a new Cerebras AI request
-    pub fn cerebras(key: impl Into<String>, model: impl Into<String>) -> Self {
-        Self::new(ApiKind::Cerebras, key, model)
+    pub fn cerebras(key: impl Into<String>, model: impl Into<String>) -> OpenAiCompletions {
+        OpenAiCompletions(Self::new(ApiKind::Cerebras, key, model))
     }
 
-    /// Creates a new Claude AI request
-    pub fn claude(key: impl Into<String>, model: impl Into<String>) -> Self {
-        Self::new(ApiKind::Claude, key, model)
+    pub fn claude(key: impl Into<String>, model: impl Into<String>) -> AnthropicCompletions {
+        AnthropicCompletions(Self::new(ApiKind::Claude, key, model))
     }
 
-    /// Creates a new OpenRouter AI request
-    pub fn openrouter(key: impl Into<String>, model: impl Into<String>) -> Self {
-        Self::new(ApiKind::OpenRouter, key, model)
+    pub fn openrouter(key: impl Into<String>, model: impl Into<String>) -> OpenAiCompletions {
+        OpenAiCompletions(Self::new(ApiKind::OpenRouter, key, model))
     }
 
-    /// Creates a new Perplexity AI request
-    pub fn perplexity(key: impl Into<String>, model: impl Into<String>) -> Self {
-        Self::new(ApiKind::Perplexity, key, model)
+    pub fn perplexity(key: impl Into<String>, model: impl Into<String>) -> OpenAiCompletions {
+        OpenAiCompletions(Self::new(ApiKind::Perplexity, key, model))
     }
 
-    /// Creates a new Google AI request
-    pub fn google(key: impl Into<String>, model: impl Into<String>) -> Self {
-        Self::new(ApiKind::Google, key, model)
+    pub fn gemini(key: impl Into<String>, model: impl Into<String>) -> GoogleCompletions {
+        GoogleCompletions(Self::new(ApiKind::Gemini, key, model))
     }
 
-    /// Creates a new Google Gemini AI request
-    pub fn gemini(key: impl Into<String>, model: impl Into<String>) -> Self {
-        Self::new(ApiKind::Gemini, key, model)
+    // Common helper to build reqwest client
+    fn build_client(&mut self) -> Result<Client> {
+        let mut builder = Client::builder().timeout(self.timeout);
+        if let Some(proxy) = self.proxy.take() {
+            builder = builder.proxy(proxy).danger_accept_invalid_certs(true);
+        }
+        Ok(builder.build()?)
     }
 
-    /// Sets the LM API authorization key
-    pub fn key(mut self, key: impl Into<String>) -> Self {
-        self.api_key = key.into();
-        self
-    }
-
-    /// Sets the custom API server host
-    pub fn host(mut self, url: impl Into<String>) -> Self {
-        self.host = Some(url.into());
-        self
-    }
-
-    /// Sets a proxy tunnel settings
-    pub fn proxy(mut self, proxy: Proxy) -> Self {
-        self.proxy = Some(proxy);
-        self
-    }
-
-    /// Sets a connection timeout
-    pub fn timeout(mut self, dur: Duration) -> Self {
-        self.timeout = dur;
-        self
-    }
-
-    /// Sets a connection timeout (from seconds)
-    pub fn timeout_secs(mut self, secs: u64) -> Self {
-        self.timeout = Duration::from_secs(secs);
-        self
-    }
-
-    /// Sets a connection timeout (from millis)
-    pub fn timeout_ms(mut self, secs: u64) -> Self {
-        self.timeout = Duration::from_millis(secs);
-        self
-    }
-
-    /// Sets the LM model name
-    pub fn model(mut self, model: impl Into<String>) -> Self {
-        self.model = model.into();
-        self
-    }
-
-    /// Sets the AI generation temperature
-    pub fn set_temperature(&mut self, temperature: f32) {
-        self.temperature = temperature;
-    }
-    /// Sets the AI generation temperature
-    pub fn temperature(mut self, temperature: f32) -> Self {
-        self.set_temperature(temperature);
-        self
-    }
-
-    /// Sets the maximum context tokens count
-    pub fn max_tokens(mut self, count: i32) -> Self {
-        self.max_tokens = count;
-        self
-    }
-
-    /// Sets the structured response schema
-    pub fn schema(mut self, schema: Schema) -> Self {
-        self.schema.replace(schema);
-        self
-    }
-
-    /// Adds the tool calls
-    pub fn tools(mut self, tools: Vec<Tool>) -> Self {
-        self.tools.extend(tools);
-        self
-    }
-
-    /// Adds the tool call
-    pub fn tool(mut self, tool: Tool) -> Self {
-        self.tools.push(tool);
-        self
-    }
-
-    /// Sends the request to LM server
-    pub async fn send(&mut self, messages: Arc<Mutex<Messages>>) -> Result<AiStream> {
-        use crate::chunk::*;
-
-        // generate URL:
-        let url = if let Some(host) = &self.host {
+    // Common helper to build full URL
+    fn build_url(&self) -> String {
+        if let Some(host) = &self.host {
             str!(
                 "{host}{}{}",
-                if host.ends_with("/") { "" } else { "/" },
+                if host.ends_with('/') { "" } else { "/" },
                 self.api_kind.completions_path(&self.model)
             )
         } else {
@@ -250,16 +161,15 @@ impl Completions {
                 self.api_kind.host(),
                 self.api_kind.completions_path(&self.model)
             )
-        };
+        }
+    }
 
-        // validate context:
+    // Context validation
+    async fn validate_context(&self, messages: &Arc<Mutex<Messages>>) -> Result<()> {
         if self.max_tokens > 0 {
-            // check tokens count:
             if self.tokens_count > self.max_tokens as usize {
                 return Err(Error::ContextOverflowing.into());
             }
-
-            // check last message:
             let lock = messages.lock().await;
             if let Some(msg) = lock.messages.last()
                 && !msg.role.is_user()
@@ -267,115 +177,505 @@ impl Completions {
                 return Err(Error::BadRequest.into());
             }
         }
+        Ok(())
+    }
+}
 
-        // serialize & clean data:
-        let mut data = json::to_value(&self)?;
+// Macro to implement common builder chain methods on child structs
+macro_rules! impl_completions_builders {
+    ($type:ty) => {
+        impl $type {
+            pub fn version(mut self, version: impl Into<String>) -> Self {
+                self.0.api_version = Some(version.into());
+                self
+            }
+            pub fn key(mut self, key: impl Into<String>) -> Self {
+                self.0.api_key = key.into();
+                self
+            }
+            pub fn host(mut self, url: impl Into<String>) -> Self {
+                self.0.host = Some(url.into());
+                self
+            }
+            pub fn proxy(mut self, proxy: Proxy) -> Self {
+                self.0.proxy = Some(proxy);
+                self
+            }
+            pub fn timeout(mut self, dur: Duration) -> Self {
+                self.0.timeout = dur;
+                self
+            }
+            pub fn timeout_secs(mut self, secs: u64) -> Self {
+                self.0.timeout = Duration::from_secs(secs);
+                self
+            }
+            pub fn timeout_ms(mut self, ms: u64) -> Self {
+                self.0.timeout = Duration::from_millis(ms);
+                self
+            }
+            pub fn model(mut self, model: impl Into<String>) -> Self {
+                self.0.model = model.into();
+                self
+            }
+            pub fn temperature(mut self, temperature: f32) -> Self {
+                self.0.temperature = temperature;
+                self
+            }
+            pub fn max_tokens(mut self, count: i32) -> Self {
+                self.0.max_tokens = count;
+                self
+            }
+            pub fn schema(mut self, schema: Schema) -> Self {
+                self.0.schema = Some(schema);
+                self
+            }
+            pub fn tools(mut self, tools: Vec<Tool>) -> Self {
+                self.0.tools.extend(tools);
+                self
+            }
+            pub fn tool(mut self, tool: Tool) -> Self {
+                self.0.tools.push(tool);
+                self
+            }
+        }
+    };
+}
+
+// ============================================================================
+// OPENAI PROVIDER
+// ============================================================================
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OpenAiCompletions(pub Completions);
+
+impl std::ops::Deref for OpenAiCompletions {
+    type Target = Completions;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for OpenAiCompletions {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl_completions_builders!(OpenAiCompletions);
+
+impl OpenAiCompletions {
+    pub async fn send(&mut self, messages: Arc<Mutex<Messages>>) -> Result<AiStream> {
+        self.validate_context(&messages).await?;
+        let url = self.build_url();
+
+        let mut data = json::to_value(&self.0)?;
         let data_obj = data.as_object_mut().unwrap();
         data_obj.remove("tokens_count");
-        data_obj.insert(str!("messages"), json::to_value(&*messages.lock().await)?);
-        if let Some(messages) = data_obj.get_mut("messages").and_then(|v| v.as_array_mut()) {
-            for msg in messages {
-                if let Some(msg_obj) = msg.as_object_mut() {
-                    msg_obj.remove("tokens_count");
-                    msg_obj.remove("timestamp");
+
+        let mut msgs_val = json::to_value(&*messages.lock().await)?;
+        if let Some(arr) = msgs_val.as_array_mut() {
+            for msg in arr {
+                if let Some(obj) = msg.as_object_mut() {
+                    obj.remove("tokens_count");
+                    obj.remove("timestamp");
                 }
             }
         }
+        data_obj.insert(str!("messages"), msgs_val);
         data_obj.insert(str!("stream"), JsonValue::Bool(true));
 
-        // prepare JSON-schema:
         if let Some(schema) = self.schema.take() {
             data_obj.remove("schema");
-
-            if self.api_kind.is_openai() {
-                data_obj.insert(str!("response_format"), schema.to_openai_format()?);
-            } else if self.api_kind.is_google() {
-                let google_config = schema.to_google_format()?;
-
-                if let Some(config) = data_obj
-                    .get_mut("generationConfig")
-                    .and_then(|c| c.as_object_mut())
-                {
-                    if let Some(obj) = google_config.as_object() {
-                        for (k, v) in obj {
-                            config.insert(k.clone(), v.clone());
-                        }
-                    }
-                } else {
-                    data_obj.insert(str!("generationConfig"), google_config);
-                }
-            } else {
-                data_obj.insert(str!("output_config"), schema.to_anthropic_format()?);
-            }
+            data_obj.insert(str!("response_format"), schema.to_openai_format()?);
         }
 
-        // prepare tools schemes:
         if !self.tools.is_empty() {
             let mut tools_json = Vec::new();
-
             for tool in &self.tools {
-                let formatted_tool = if self.api_kind.is_openai() {
-                    tool.to_openai_format()
-                } else if self.api_kind.is_google() {
-                    tool.to_google_format()
-                } else {
-                    tool.to_anthropic_format()
-                }?;
-
-                if self.api_kind.is_google() {
-                    if tools_json.is_empty() {
-                        tools_json.push(formatted_tool);
-                    } else if let Some(first_tool) = tools_json.get_mut(0) {
-                        if let Some(decls) = first_tool
-                            .get_mut("function_declarations")
-                            .and_then(|d| d.as_array_mut())
-                        {
-                            let tool_val = tool.to_json_tool()?;
-                            decls.push(tool_val);
-                        }
-                    }
-                } else {
-                    tools_json.push(formatted_tool);
-                }
+                tools_json.push(tool.to_openai_format()?);
             }
-
-            data_obj.insert("tools".to_string(), JsonValue::Array(tools_json));
+            data_obj.insert(str!("tools"), JsonValue::Array(tools_json));
         }
 
-        // create client & configure proxy:
-        let mut client_builder = Client::builder().timeout(self.timeout);
-        if let Some(proxy) = self.proxy.take() {
-            client_builder = client_builder
-                .proxy(proxy)
-                .danger_accept_invalid_certs(true);
-        }
-
-        // build request & options:
-        let mut request = client_builder
-            .build()?
+        let client = self.build_client()?;
+        let response = client
             .post(&url)
             .header(header::CONTENT_TYPE, "application/json")
             .header(header::ACCEPT, "text/event-stream")
-            .json(&data_obj);
+            .header(header::AUTHORIZATION, str!("Bearer {}", self.api_key))
+            .json(&data_obj)
+            .send()
+            .await?;
 
-        // set api key:
-        if self.api_kind.is_google() {
-            request = request.header("x-goog-api-key", &self.api_key);
-        } else if self.api_kind.is_anthropic() {
-            request = request.header("x-api-key", &self.api_key);
-            request = request.header(
-                "anthropic-version",
-                self.api_version.take().unwrap_or(str!("2023-06-01")),
+        let bytes_stream = response.bytes_stream().map(|r| r.map_err(Into::into));
+        let reader = StreamReader::read::<ResponseChunk>(bytes_stream);
+        let (tx, rx) = mpsc::unbounded_channel();
+        let handle = Self::spawn_reader(reader, tx, messages);
+
+        Ok(AiStream { rx, handle })
+    }
+
+    fn spawn_reader(
+        mut reader: StreamReader<ResponseChunk>,
+        tx: mpsc::UnboundedSender<Result<Chunk>>,
+        messages: Arc<Mutex<Messages>>,
+    ) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
+            let mut full_text = str!();
+            let mut tool_calls = vec![];
+            let mut allocated_tool_ids = vec![];
+            let mut tool_buffers = HashMap::<usize, PartialToolCall>::new();
+
+            loop {
+                if tx.is_closed() {
+                    return;
+                }
+
+                match reader.read().await {
+                    Ok(Some(chunk)) => match chunk {
+                        ResponseChunk::OpenAi(OpenAIChunk { choices }) => {
+                            for choice in choices {
+                                if let Some(content) = choice.delta.content {
+                                    if !content.is_empty() {
+                                        full_text.push_str(&content);
+                                        if tx.send(Ok(Chunk::Text(content))).is_err() {
+                                            return;
+                                        }
+                                    }
+                                }
+
+                                if let Some(tc_list) = choice.delta.tool_calls {
+                                    for tc in tc_list {
+                                        if let Some(idx) = tc.index {
+                                            let entry = tool_buffers.entry(idx).or_default();
+
+                                            // Обновляем id и name ТОЛЬКО если они пришли в чанке (не перезаписываем пустыми)
+                                            if let Some(id) = tc.id
+                                                && !id.is_empty()
+                                            {
+                                                entry.id = id;
+                                            }
+                                            if let Some(fn_delta) = tc.function {
+                                                if let Some(name) = fn_delta.name
+                                                    && !name.is_empty()
+                                                {
+                                                    entry.name = name;
+                                                }
+                                                if let Some(args) = fn_delta.arguments {
+                                                    entry.args_buf.push_str(&args);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Сбрасываем только если стрим для данного choice явно завершен
+                                // (finish_reason == "tool_calls" или "stop")
+                                if choice.finish_reason.is_some() {
+                                    Self::flush_buffers(
+                                        &mut tool_buffers,
+                                        &mut tool_calls,
+                                        &mut allocated_tool_ids,
+                                        &tx,
+                                    );
+                                }
+                            }
+                        }
+                        ResponseChunk::Error(err) => {
+                            let _ = tx
+                                .send(Err(
+                                    Error::ResponseError(ResponseError { error: err }).into()
+                                ));
+                            return;
+                        }
+                        _ => {}
+                    },
+                    Ok(None) => break,
+                    Err(e) => {
+                        let _ = tx.send(Err(e.into()));
+                        break;
+                    }
+                }
+            }
+
+            // Финальный флеш для гарантии при закрытии соединения
+            Self::flush_buffers(
+                &mut tool_buffers,
+                &mut tool_calls,
+                &mut allocated_tool_ids,
+                &tx,
             );
-        } else {
-            request = request.header(header::AUTHORIZATION, str!("Bearer {}", self.api_key));
+
+            let mut lock = messages.lock().await;
+            lock.add_assistant(vec![full_text.into()], tool_calls);
+            for id in allocated_tool_ids {
+                lock.push_str(Some(&id), "");
+            }
+        })
+    }
+
+    fn flush_buffers(
+        tool_buffers: &mut HashMap<usize, PartialToolCall>,
+        tool_calls: &mut Vec<ToolCall>,
+        allocated_tool_ids: &mut Vec<String>,
+        tx: &mpsc::UnboundedSender<Result<Chunk>>,
+    ) {
+        for (_, buf) in tool_buffers.drain() {
+            if buf.name.is_empty() {
+                continue;
+            }
+            let final_id = if buf.id.is_empty() {
+                str!("call_{}", buf.name)
+            } else {
+                buf.id
+            };
+
+            allocated_tool_ids.push(final_id.clone());
+
+            let tool = ToolCall {
+                id: final_id,
+                kind: str!("function"),
+                func: ToolCallFunction {
+                    name: buf.name,
+                    json_str: buf.args_buf,
+                },
+            };
+
+            tool_calls.push(tool.clone());
+            let _ = tx.send(Ok(Chunk::Tool(tool)));
+        }
+    }
+}
+
+// ============================================================================
+// ANTHROPIC PROVIDER
+// ============================================================================
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AnthropicCompletions(pub Completions);
+
+impl std::ops::Deref for AnthropicCompletions {
+    type Target = Completions;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for AnthropicCompletions {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl_completions_builders!(AnthropicCompletions);
+
+impl AnthropicCompletions {
+    pub async fn send(&mut self, messages: Arc<Mutex<Messages>>) -> Result<AiStream> {
+        self.validate_context(&messages).await?;
+        let url = self.build_url();
+
+        let mut data = json::to_value(&self.0)?;
+        let data_obj = data.as_object_mut().unwrap();
+        data_obj.remove("tokens_count");
+
+        let mut msgs_val = json::to_value(&*messages.lock().await)?;
+        if let Some(arr) = msgs_val.as_array_mut() {
+            for msg in arr {
+                if let Some(obj) = msg.as_object_mut() {
+                    obj.remove("tokens_count");
+                    obj.remove("timestamp");
+                }
+            }
+        }
+        data_obj.insert(str!("messages"), msgs_val);
+        data_obj.insert(str!("stream"), JsonValue::Bool(true));
+
+        if let Some(schema) = self.schema.take() {
+            data_obj.remove("schema");
+            data_obj.insert(str!("output_config"), schema.to_anthropic_format()?);
         }
 
-        if self.api_kind.is_google() {
-            let messages = data_obj.remove("messages").unwrap_or(json!([]));
-            let contents: Vec<JsonValue> = messages
-                .as_array()
-                .unwrap()
+        if !self.tools.is_empty() {
+            let mut tools_json = Vec::new();
+            for tool in &self.tools {
+                tools_json.push(tool.to_anthropic_format()?);
+            }
+            data_obj.insert(str!("tools"), JsonValue::Array(tools_json));
+        }
+
+        let api_version = self
+            .api_version
+            .take()
+            .unwrap_or_else(|| str!("2023-06-01"));
+
+        let client = self.build_client()?;
+        let response = client
+            .post(&url)
+            .header(header::CONTENT_TYPE, "application/json")
+            .header(header::ACCEPT, "text/event-stream")
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", api_version)
+            .json(&data_obj)
+            .send()
+            .await?;
+
+        let bytes_stream = response.bytes_stream().map(|r| r.map_err(Into::into));
+        let reader = StreamReader::read::<ResponseChunk>(bytes_stream);
+        let (tx, rx) = mpsc::unbounded_channel();
+        let handle = Self::spawn_reader(reader, tx, messages);
+
+        Ok(AiStream { rx, handle })
+    }
+
+    fn spawn_reader(
+        mut reader: StreamReader<ResponseChunk>,
+        tx: mpsc::UnboundedSender<Result<Chunk>>,
+        messages: Arc<Mutex<Messages>>,
+    ) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
+            let mut full_text = str!();
+            let mut tool_calls = vec![];
+            let mut allocated_tool_ids = vec![];
+            let mut tool_buffers = HashMap::<usize, PartialToolCall>::new();
+
+            loop {
+                if tx.is_closed() {
+                    return;
+                }
+
+                match reader.read().await {
+                    Ok(Some(chunk)) => match chunk {
+                        ResponseChunk::Anthropic(anth) => {
+                            let idx = anth.index.unwrap_or(0);
+
+                            if let Some(block) = anth.content_block {
+                                if block.kind == "tool_use" {
+                                    let entry = tool_buffers.entry(idx).or_default();
+                                    entry.name = block.name;
+                                    if let Some(id) = block.id {
+                                        entry.id = id;
+                                    }
+                                }
+                            }
+
+                            if let Some(delta) = anth.delta {
+                                if let Some(t) = delta.text {
+                                    if !t.is_empty() {
+                                        full_text.push_str(&t);
+                                        if tx.send(Ok(Chunk::Text(t))).is_err() {
+                                            return;
+                                        }
+                                    }
+                                }
+                                if let Some(pj) = delta.partial_json {
+                                    tool_buffers.entry(idx).or_default().args_buf.push_str(&pj);
+                                }
+                            }
+
+                            // If block completes, process tool call immediately
+                            if anth.kind == "content_block_stop" {
+                                if let Some(buf) = tool_buffers.remove(&idx) {
+                                    Self::emit_tool(
+                                        buf,
+                                        &mut tool_calls,
+                                        &mut allocated_tool_ids,
+                                        &tx,
+                                    );
+                                }
+                            }
+                        }
+                        ResponseChunk::Error(err) => {
+                            let _ = tx
+                                .send(Err(
+                                    Error::ResponseError(ResponseError { error: err }).into()
+                                ));
+                            return;
+                        }
+                        _ => {}
+                    },
+                    Ok(None) => break,
+                    Err(e) => {
+                        let _ = tx.send(Err(e.into()));
+                        break;
+                    }
+                }
+            }
+
+            // Flush remaining buffers at EOF
+            for (_, buf) in tool_buffers.drain() {
+                Self::emit_tool(buf, &mut tool_calls, &mut allocated_tool_ids, &tx);
+            }
+
+            let mut lock = messages.lock().await;
+            lock.add_assistant(vec![full_text.into()], tool_calls);
+            for id in allocated_tool_ids {
+                lock.push_str(Some(&id), "");
+            }
+        })
+    }
+
+    fn emit_tool(
+        buf: PartialToolCall,
+        tool_calls: &mut Vec<ToolCall>,
+        allocated_tool_ids: &mut Vec<String>,
+        tx: &mpsc::UnboundedSender<Result<Chunk>>,
+    ) {
+        if buf.name.is_empty() {
+            return;
+        }
+        let final_id = if buf.id.is_empty() {
+            str!("call_{}", buf.name)
+        } else {
+            buf.id
+        };
+
+        allocated_tool_ids.push(final_id.clone());
+
+        let tool = ToolCall {
+            id: final_id,
+            kind: str!("function"),
+            func: ToolCallFunction {
+                name: buf.name,
+                json_str: buf.args_buf,
+            },
+        };
+
+        tool_calls.push(tool.clone());
+        let _ = tx.send(Ok(Chunk::Tool(tool)));
+    }
+}
+
+// ============================================================================
+// GOOGLE PROVIDER
+// ============================================================================
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GoogleCompletions(pub Completions);
+
+impl std::ops::Deref for GoogleCompletions {
+    type Target = Completions;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for GoogleCompletions {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl_completions_builders!(GoogleCompletions);
+
+impl GoogleCompletions {
+    pub async fn send(&mut self, messages: Arc<Mutex<Messages>>) -> Result<AiStream> {
+        self.validate_context(&messages).await?;
+        let url = self.build_url();
+
+        let mut data = json::to_value(&self.0)?;
+        let data_obj = data.as_object_mut().unwrap();
+        data_obj.remove("tokens_count");
+        data_obj.remove("model");
+        data_obj.insert(str!("stream"), JsonValue::Bool(true));
+
+        // Format Gemini messages into "contents" BEFORE serializing request payload
+        let raw_messages = json::to_value(&*messages.lock().await)?;
+        if let Some(msg_array) = raw_messages.as_array() {
+            let contents: Vec<JsonValue> = msg_array
                 .iter()
                 .map(|m| {
                     json!({
@@ -385,32 +685,74 @@ impl Completions {
                 })
                 .collect();
             data_obj.insert(str!("contents"), json!(contents));
-            data_obj.remove("model");
         }
 
-        // send & spawn reader:
-        let response = request.send().await?;
-        let bytes_stream = response.bytes_stream().map(|r| r.map_err(Into::into));
-        let reader = Stream::read::<ResponseChunk>(bytes_stream);
+        // Schema formatting for Google
+        if let Some(schema) = self.schema.take() {
+            data_obj.remove("schema");
+            let google_config = schema.to_google_format()?;
 
-        let (tx, rx) = mpsc::unbounded_channel::<Result<AiChunk>>();
+            if let Some(config) = data_obj
+                .get_mut("generationConfig")
+                .and_then(|c| c.as_object_mut())
+            {
+                if let Some(obj) = google_config.as_object() {
+                    for (k, v) in obj {
+                        config.insert(k.clone(), v.clone());
+                    }
+                }
+            } else {
+                data_obj.insert(str!("generationConfig"), google_config);
+            }
+        }
+
+        // Tools formatting for Google
+        if !self.tools.is_empty() {
+            let mut tools_json = Vec::new();
+            for tool in &self.tools {
+                let formatted_tool = tool.to_google_format()?;
+                if tools_json.is_empty() {
+                    tools_json.push(formatted_tool);
+                } else if let Some(first_tool) = tools_json.get_mut(0) {
+                    if let Some(decls) = first_tool
+                        .get_mut("function_declarations")
+                        .and_then(|d| d.as_array_mut())
+                    {
+                        let tool_val = tool.to_json_tool()?;
+                        decls.push(tool_val);
+                    }
+                }
+            }
+            data_obj.insert(str!("tools"), JsonValue::Array(tools_json));
+        }
+
+        let client = self.build_client()?;
+        let response = client
+            .post(&url)
+            .header(header::CONTENT_TYPE, "application/json")
+            .header(header::ACCEPT, "text/event-stream")
+            .header("x-goog-api-key", &self.api_key)
+            .json(&data_obj)
+            .send()
+            .await?;
+
+        let bytes_stream = response.bytes_stream().map(|r| r.map_err(Into::into));
+        let reader = StreamReader::read::<ResponseChunk>(bytes_stream);
+        let (tx, rx) = mpsc::unbounded_channel();
         let handle = Self::spawn_reader(reader, tx, messages);
 
         Ok(AiStream { rx, handle })
     }
 
-    /// Spawns a background task to process the incoming SSE stream
     fn spawn_reader(
         mut reader: StreamReader<ResponseChunk>,
-        tx: mpsc::UnboundedSender<Result<AiChunk>>,
+        tx: mpsc::UnboundedSender<Result<Chunk>>,
         messages: Arc<Mutex<Messages>>,
     ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             let mut full_text = str!();
             let mut tool_calls = vec![];
-
             let mut allocated_tool_ids = vec![];
-            let mut tool_buffers = HashMap::<usize, (String, String, String)>::new();
 
             loop {
                 if tx.is_closed() {
@@ -418,143 +760,57 @@ impl Completions {
                 }
 
                 match reader.read().await {
-                    Ok(Some(chunk)) => {
-                        let mut text_output = String::new();
-
-                        match chunk {
-                            // OpenAI standart:
-                            ResponseChunk::OpenAi(OpenAIChunk { choices }) => {
-                                for choice in choices {
-                                    if let Some(content) = choice.delta.content {
-                                        text_output.push_str(&content);
-                                    }
-
-                                    if let Some(tool_calls) = choice.delta.tool_calls {
-                                        for tc in tool_calls {
-                                            if let Some(idx) = tc.index {
-                                                let entry = tool_buffers.entry(idx).or_default();
-                                                if let Some(id) = tc.id {
-                                                    entry.0 = id;
-                                                }
-                                                if let Some(fn_delta) = tc.function {
-                                                    if let Some(name) = fn_delta.name {
-                                                        entry.1 = name;
-                                                    }
-                                                    if let Some(args) = fn_delta.arguments {
-                                                        entry.2.push_str(&args);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Anthropic standart:
-                            ResponseChunk::Anthropic(anth) => {
-                                let idx = anth.index.unwrap_or(0);
-
-                                if let Some(block) = anth.content_block {
-                                    if block.kind == "tool_use" {
-                                        let entry = tool_buffers.entry(idx).or_default();
-                                        entry.1 = block.name;
-                                        if let Some(id) = block.id {
-                                            entry.0 = id;
-                                        }
-                                    }
-                                }
-
-                                if let Some(delta) = anth.delta {
-                                    if let Some(t) = delta.text {
-                                        text_output.push_str(&t);
-                                    }
-                                    if let Some(pj) = delta.partial_json {
-                                        tool_buffers.entry(idx).or_default().2.push_str(&pj);
-                                    }
-                                }
-                            }
-
-                            // Google standart:
-                            ResponseChunk::Google(google) => {
-                                for cand in google.candidates {
-                                    if let Some(content) = cand.content {
-                                        for part in content.parts {
-                                            match part {
-                                                GeminiPart::Text { text } => {
-                                                    text_output.push_str(&text)
-                                                }
-                                                GeminiPart::FunctionCall { function_call } => {
-                                                    let tool_name = function_call.name;
-                                                    let final_id =
-                                                        function_call.id.unwrap_or_default();
-
-                                                    allocated_tool_ids.push(final_id.clone());
-
-                                                    let tool = ToolCall {
-                                                        id: final_id,
-                                                        kind: str!("function"),
-                                                        func: ToolCallFunction {
-                                                            name: tool_name,
-                                                            json_str: function_call
-                                                                .args
-                                                                .to_string(),
-                                                        },
-                                                    };
-
-                                                    tool_calls.push(tool.clone());
-
-                                                    if tx.send(Ok(AiChunk::Tool(tool))).is_err() {
+                    Ok(Some(chunk)) => match chunk {
+                        ResponseChunk::Google(google) => {
+                            for cand in google.candidates {
+                                if let Some(content) = cand.content {
+                                    for part in content.parts {
+                                        match part {
+                                            GeminiPart::Text { text } => {
+                                                if !text.is_empty() {
+                                                    full_text.push_str(&text);
+                                                    if tx.send(Ok(Chunk::Text(text))).is_err() {
                                                         return;
                                                     }
                                                 }
                                             }
+                                            GeminiPart::FunctionCall { function_call } => {
+                                                let tool_name = function_call.name;
+                                                let final_id = function_call
+                                                    .id
+                                                    .unwrap_or_else(|| str!("call_{}", tool_name));
+
+                                                allocated_tool_ids.push(final_id.clone());
+
+                                                // Google returns structured JSON args directly, no chunk accumulation required
+                                                let tool = ToolCall {
+                                                    id: final_id,
+                                                    kind: str!("function"),
+                                                    func: ToolCallFunction {
+                                                        name: tool_name,
+                                                        json_str: function_call.args.to_string(),
+                                                    },
+                                                };
+
+                                                tool_calls.push(tool.clone());
+                                                if tx.send(Ok(Chunk::Tool(tool))).is_err() {
+                                                    return;
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
-
-                            ResponseChunk::Error(err) => {
-                                let _ = tx
-                                    .send(Err(
-                                        Error::ResponseError(ResponseError { error: err }).into()
-                                    ));
-                                return;
-                            }
                         }
-
-                        if !text_output.is_empty() {
-                            full_text.push_str(&text_output);
-                            if tx.send(Ok(AiChunk::Text(text_output))).is_err() {
-                                break;
-                            }
+                        ResponseChunk::Error(err) => {
+                            let _ = tx
+                                .send(Err(
+                                    Error::ResponseError(ResponseError { error: err }).into()
+                                ));
+                            return;
                         }
-
-                        // filtering tool buffers:
-                        tool_buffers.retain(|_, (id, name, args)| {
-                            if json::from_str::<JsonValue>(args).is_ok() {
-                                allocated_tool_ids.push(id.clone());
-
-                                let tool = ToolCall {
-                                    id: id.clone(),
-                                    kind: str!("function"),
-                                    func: ToolCallFunction {
-                                        name: name.clone(),
-                                        json_str: args.clone(),
-                                    },
-                                };
-
-                                tool_calls.push(tool.clone());
-
-                                if tx.send(Ok(AiChunk::Tool(tool))).is_err() {
-                                    return false;
-                                }
-                                false
-                            } else {
-                                true
-                            }
-                        });
-                    }
-
+                        _ => {}
+                    },
                     Ok(None) => break,
                     Err(e) => {
                         let _ = tx.send(Err(e.into()));
@@ -563,61 +819,38 @@ impl Completions {
                 }
             }
 
-            // sync messages:
             let mut lock = messages.lock().await;
-
             lock.add_assistant(vec![full_text.into()], tool_calls);
             for id in allocated_tool_ids {
                 lock.push_str(Some(&id), "");
             }
         })
     }
-
-    /* /// Generates an unique id for tool call
-    fn gen_tool_id(tool_name: &str) -> String {
-        use std::hash::{Hash, Hasher};
-
-        // get system time:
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos();
-
-        // hashing nanos and name:
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        tool_name.hash(&mut hasher);
-        nanos.hash(&mut hasher);
-        let hash_result = hasher.finish();
-
-        // formatting:
-        str!("call_{hash_result:016x}")
-    } */
 }
 
-impl TryFrom<AiOptions> for Completions {
+// ============================================================================
+// CONVERSIONS
+// ============================================================================
+
+impl TryFrom<Options> for Completions {
     type Error = DynError;
 
-    fn try_from(ops: AiOptions) -> Result<Self> {
+    fn try_from(ops: Options) -> Result<Self> {
         let mut this = Self::new(
-            // choose AI service
             ops.kind,
-            // read API key
             if let Some(v) = ops.env_var.as_ref() {
                 std::env::var(v).unwrap_or_default()
             } else {
                 String::new()
             },
-            // choose model
             ops.model,
         )
         .max_tokens(ops.max_tokens.unwrap_or(8096))
         .temperature(ops.temperature.unwrap_or(0.6));
 
-        // set default server host:
         if let Some(host) = ops.server.as_ref() {
             this = this.host(host.to_owned());
         }
-        // set proxy options:
         if let Some(proxy) = ops.proxy.as_ref() {
             this = this.proxy(Proxy::all(proxy.to_owned())?);
         }

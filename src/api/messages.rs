@@ -1,5 +1,5 @@
 use super::{Content, Image, Message, Role};
-use crate::{ToolCall, prelude::*};
+use crate::{api::ToolCall, prelude::*};
 
 use std::{path::Path, sync::Arc};
 use tokio::{fs, sync::Mutex};

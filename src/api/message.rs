@@ -1,5 +1,5 @@
 use super::{Content, Role};
-use crate::{ToolCall, prelude::*, utils};
+use crate::{api::ToolCall, prelude::*, utils};
 
 use chrono::{DateTime, Utc};
 

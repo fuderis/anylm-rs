@@ -1,12 +1,6 @@
 pub mod kind;
 pub use kind::ApiKind;
 
-pub mod completions;
-pub use completions::{AiChunk, AiStream, Completions};
-
-pub mod embeddings;
-pub use embeddings::{Embedding, EmbeddingSearch, Embeddings, EmbeddingsData, Usage};
-
 pub mod schema;
 pub use schema::{Schema, SchemaKind};
 

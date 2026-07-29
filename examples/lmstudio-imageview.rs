@@ -1,10 +1,11 @@
-use anylm::{AiChunk, Completions, Messages};
+use anylm::{
+    api::Messages,
+    completions::{Chunk, Completions},
+};
 use std::path::Path;
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
-
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     // prepare messages:
     let messages = Messages::new()
         .user(vec![
@@ -14,13 +15,15 @@ async fn main() -> Result<()> {
         .wrap();
 
     // send request:
-    let mut response = Completions::lmstudio("", "qwen/qwen3-vl-4b")
+    let mut response = Completions::openai()
+        .base_url("http://127.0.0.1:1234")
+        .model("qwen/qwen3-vl-4b")
         .send(messages)
         .await?;
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        if let AiChunk::Text(text) = chunk? {
+        if let Chunk::Text(text) = chunk? {
             eprint!("{text}");
         }
     }
