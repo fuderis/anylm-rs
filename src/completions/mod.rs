@@ -83,17 +83,37 @@ impl Completions {
     pub fn new(kind: ApiKind) -> Self {
         Self {
             api_kind: kind,
-            api_version: if kind.is_anthropic() {
-                Some("2023-06-01".to_string())
-            } else {
-                None
+            api_version: {
+                #[cfg(feature = "anthropic")]
+                if kind.is_anthropic() {
+                    Some("2023-06-01".to_string())
+                } else {
+                    None
+                }
+
+                #[cfg(not(feature = "anthropic"))]
+                {
+                    None
+                }
             },
             api_key: None,
             base_url: None,
             proxy: None,
             timeout: Duration::from_secs(600),
             model: String::new(),
-            max_tokens: if kind.is_anthropic() { 8192 } else { -1 },
+            max_tokens: {
+                #[cfg(feature = "anthropic")]
+                if kind.is_anthropic() {
+                    8192
+                } else {
+                    -1
+                }
+
+                #[cfg(not(feature = "anthropic"))]
+                {
+                    -1
+                }
+            },
             temperature: 0.7,
             tokens_count: 0,
             schema: None,
@@ -252,7 +272,9 @@ impl Completions {
     pub async fn send(self, messages: Arc<Mutex<Messages>>) -> Result<Stream> {
         match self.api_kind {
             ApiKind::OpenAi => OpenAiCompletions(self).send(messages).await,
+            #[cfg(feature = "anthropic")]
             ApiKind::Anthropic => AnthropicCompletions(self).send(messages).await,
+            #[cfg(feature = "google")]
             ApiKind::Google => GoogleCompletions(self).send(messages).await,
         }
     }

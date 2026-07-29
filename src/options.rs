@@ -41,10 +41,12 @@ impl Options {
         Self::new(ApiKind::OpenAi)
     }
 
+    #[cfg(feature = "anthropic")]
     pub fn anthropic() -> Self {
         Self::new(ApiKind::Anthropic)
     }
 
+    #[cfg(feature = "google")]
     pub fn google() -> Self {
         Self::new(ApiKind::Google)
     }
