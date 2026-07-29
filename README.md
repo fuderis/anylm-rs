@@ -27,7 +27,7 @@ I was too. That's why I built `AnyLM`: learn one intuitive API once, then unleas
 
 ## Examples:
 
-### LM Studio (OpenAI Standard):
+### LM Studio (OpenAI standard):
 
 ```rust
 use anylm::{
@@ -61,7 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
 }
 ```
 
-### Claude (Anthropic Standard):
+### Claude (Anthropic standard):
 
 ```rust
 use anylm::{
@@ -80,8 +80,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     // send request:
     let mut response = Completions::anthropic()
         .model("claude-opus-4-6")
-        .read_key("ANTHROPIC_API_KEY")?
+        .read_key("ANTHROPIC_API_KEY")? // env var
         .proxy(Proxy::all("socks5://127.0.0.1:1080")?)
+        .send(messages)
+        .await?;
+
+    // read response stream:
+    while let Some(chunk) = response.next().await {
+        if let Chunk::Text(text) = chunk? {
+            eprint!("{text}");
+        }
+    }
+    println!();
+
+    Ok(())
+}
+```
+
+### Gemini (Google standard)
+
+```rust
+use anylm::{
+    api::Messages,
+    completions::{Chunk, Completions},
+};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
+    // prepare messages:
+    let messages = Messages::new()
+        .user(vec!["Hello, how are you doing?".into()])
+        .wrap();
+
+    // send request:
+    let mut response = Completions::google()
+        .model("gemini-1.5-pro")
+        .read_key("GOOGLE_API_KEY")? // env var
         .send(messages)
         .await?;
 

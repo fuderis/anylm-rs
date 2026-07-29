@@ -1,10 +1,17 @@
-pub mod anthropic;
-pub mod google;
-pub mod openai;
+#![allow(unused_imports)]
 
-pub use anthropic::AnthropicCompletions;
-pub use google::GoogleCompletions;
+pub mod openai;
 pub use openai::OpenAiCompletions;
+
+#[cfg(feature = "anthropic")]
+pub use anthropic::AnthropicCompletions;
+#[cfg(feature = "anthropic")]
+pub mod anthropic;
+
+#[cfg(feature = "google")]
+pub mod google;
+#[cfg(feature = "google")]
+pub use google::GoogleCompletions;
 
 use crate::{api::*, chunk::*, options::Options, prelude::*};
 
@@ -99,10 +106,12 @@ impl Completions {
         OpenAiCompletions(Self::new(ApiKind::OpenAi))
     }
 
+    #[cfg(feature = "anthropic")]
     pub fn anthropic() -> AnthropicCompletions {
         AnthropicCompletions(Self::new(ApiKind::Anthropic))
     }
 
+    #[cfg(feature = "google")]
     pub fn google() -> GoogleCompletions {
         GoogleCompletions(Self::new(ApiKind::Google))
     }
