@@ -72,10 +72,20 @@ impl Embeddings {
     pub fn new(kind: ApiKind) -> Self {
         Self {
             api_kind: kind,
-            api_version: if kind.is_anthropic() {
-                Some("2023-06-01".to_string())
-            } else {
-                None
+
+            api_version: {
+                #[cfg(feature = "anthropic")]
+                {
+                    if kind.is_anthropic() {
+                        Some("2023-06-01".to_string())
+                    } else {
+                        None
+                    }
+                }
+                #[cfg(not(feature = "anthropic"))]
+                {
+                    None
+                }
             },
             api_key: None,
             base_url: None,
@@ -93,11 +103,13 @@ impl Embeddings {
     }
 
     /// Creates a new Anthropic embeddings request
+    #[cfg(feature = "anthropic")]
     pub fn anthropic() -> Self {
         Self::new(ApiKind::Anthropic)
     }
 
     /// Creates a new Google Gemini AI embeddings request
+    #[cfg(feature = "google")]
     pub fn google() -> Self {
         Self::new(ApiKind::Google)
     }
@@ -240,6 +252,7 @@ impl Embeddings {
         let mut data = json::to_value(&self).map_err(Error::from)?;
         let obj = data.as_object_mut().unwrap();
 
+        #[cfg(feature = "google")]
         if self.api_kind.is_google() {
             let parts: Vec<JsonValue> = self
                 .input
@@ -264,12 +277,14 @@ impl Embeddings {
         let client = builder.build()?;
 
         // send request:
+        #[allow(unused_mut)]
         let mut request = client
             .post(&url)
             .header(header::CONTENT_TYPE, "application/json")
             .json(&obj);
 
         // set api key:
+        #[cfg(feature = "google")]
         if self.api_kind.is_google() {
             request = request.header("x-goog-api-key", &api_key);
         } else {
