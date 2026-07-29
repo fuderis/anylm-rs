@@ -246,6 +246,7 @@ impl Embeddings {
     /// Sends the request to LM server
     pub async fn send(mut self) -> Result<EmbeddingsData> {
         let url = self.build_url();
+        let api_key = self.resolve_api_key();
 
         // serialize request data:
         let mut data = json::to_value(&self).map_err(Error::from)?;
@@ -287,6 +288,10 @@ impl Embeddings {
         if self.api_kind.is_google() {
             request = request.header("x-goog-api-key", &api_key);
         } else {
+            request = request.header(header::AUTHORIZATION, format!("Bearer {api_key}"));
+        }
+        #[cfg(not(feature = "google"))]
+        {
             request = request.header(header::AUTHORIZATION, format!("Bearer {api_key}"));
         }
 
