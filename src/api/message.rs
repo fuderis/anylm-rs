@@ -3,6 +3,20 @@ use crate::{api::ToolCall, prelude::*, utils};
 
 use chrono::{DateTime, Utc};
 
+/// The message visibility option
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum Visibility {
+    /// It's visible to everyone
+    #[default]
+    Public,
+
+    /// Not to show to the user, but to send models
+    Internal,
+
+    /// For debugging purposes only
+    Debug,
+}
+
 /// The request message
 #[derive(From, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[from(Bytes, expr = Message::user(vec![String::from_utf8_lossy(&value).into()]))]
@@ -20,6 +34,8 @@ pub struct Message {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub visibility: Visibility,
 }
 
 impl Message {
@@ -34,6 +50,7 @@ impl Message {
             timestamp: Some(Utc::now()),
             tool_calls: vec![],
             tool_call_id: str!(),
+            visibility: Visibility::Public,
         }
     }
 
@@ -72,6 +89,12 @@ impl Message {
         let count = count_tokens(&self.content);
         self.tokens_count = count;
         count
+    }
+
+    /// Sets the visibility option
+    pub fn visibility(mut self, visibility: Visibility) -> Self {
+        self.visibility = visibility;
+        self
     }
 }
 

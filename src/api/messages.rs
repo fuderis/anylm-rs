@@ -1,4 +1,4 @@
-use super::{Content, Image, Message, Role};
+use super::{Content, Image, Message, Role, Visibility};
 use crate::{api::ToolCall, prelude::*};
 
 use std::{path::Path, sync::Arc};
@@ -408,5 +408,33 @@ impl From<Vec<Message>> for Messages {
 
         this.count_tokens();
         this
+    }
+}
+
+impl Messages {
+    /// Serializes messages to JSON string, filtering out `Debug` messages
+    /// and removing the `visibility` field from the result.
+    pub fn to_json(&self) -> Result<JsonValue> {
+        let filtered_messages: Vec<serde_json::Value> = self
+            .messages
+            .iter()
+            // 1. Exclude messages with the Debug visibility level
+            .filter(|msg| msg.visibility != Visibility::Debug)
+            .map(|msg| {
+                // 2. Serializing the message in Value
+                let mut val = json::to_value(msg)?;
+
+                // 3. Removing the visibility field from the final JSON object
+                if let serde_json::Value::Object(ref mut map) = val {
+                    map.remove("visibility");
+                }
+
+                Ok(val)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        // serializing the resulting array into a string
+        let json = json::to_value(&filtered_messages)?;
+        Ok(json)
     }
 }

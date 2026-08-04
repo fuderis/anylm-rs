@@ -31,7 +31,7 @@ impl OpenAiCompletions {
         let data_obj = data.as_object_mut().unwrap();
         data_obj.remove("tokens_count");
 
-        let mut msgs_val = json::to_value(&*messages.lock().await)?;
+        let mut msgs_val = messages.lock().await.to_json()?;
         if let Some(arr) = msgs_val.as_array_mut() {
             for msg in arr {
                 if let Some(obj) = msg.as_object_mut() {

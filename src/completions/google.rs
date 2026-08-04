@@ -32,7 +32,7 @@ impl GoogleCompletions {
         data_obj.remove("model");
         data_obj.insert("stream".to_string(), JsonValue::Bool(true));
 
-        let raw_messages = json::to_value(&*messages.lock().await)?;
+        let raw_messages = messages.lock().await.to_json()?;
         if let Some(msg_array) = raw_messages.as_array() {
             let contents: Vec<JsonValue> = msg_array
                 .iter()
