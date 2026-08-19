@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 /// The message role
-#[derive(Clone, Debug, Display, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Display, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     System,

@@ -17,6 +17,20 @@ pub enum Visibility {
     Debug,
 }
 
+impl Visibility {
+    pub fn is_public(&self) -> bool {
+        matches!(self, Self::Public)
+    }
+
+    pub fn is_internal(&self) -> bool {
+        matches!(self, Self::Internal)
+    }
+
+    pub fn is_debug(&self) -> bool {
+        matches!(self, Self::Debug)
+    }
+}
+
 /// The request message
 #[derive(From, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[from(Bytes, expr = Message::user(vec![String::from_utf8_lossy(&value).into()]))]

@@ -1,7 +1,8 @@
 use super::*;
 use crate::api::*;
 
-use atoman::{Stream as StreamHelper, StreamExt, StreamReader};
+use atoman::Receiver;
+use futures::StreamExt;
 use reqwest::header;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -101,7 +102,7 @@ impl GoogleCompletions {
             .await?;
 
         let bytes_stream = response.bytes_stream().map(|r| r.map_err(Into::into));
-        let reader = StreamHelper::read::<ResponseChunk>(bytes_stream);
+        let reader = pearce::stream_reader::<ResponseChunk>(bytes_stream);
         let (tx, rx) = mpsc::unbounded_channel();
         let handle = Self::spawn_reader(reader, tx, messages);
 
@@ -109,7 +110,7 @@ impl GoogleCompletions {
     }
 
     fn spawn_reader(
-        mut reader: StreamReader<ResponseChunk>,
+        mut reader: Receiver<ResponseChunk>,
         tx: mpsc::UnboundedSender<Result<Chunk>>,
         messages: Arc<Mutex<Messages>>,
     ) -> tokio::task::JoinHandle<()> {
@@ -119,11 +120,12 @@ impl GoogleCompletions {
             let mut allocated_tool_ids = vec![];
 
             loop {
-                if tx.is_closed() {
-                    return;
-                }
+                let res = tokio::select! {
+                    _ = tx.closed() => return,
+                    res = reader.recv() => res,
+                };
 
-                match reader.read().await {
+                match res {
                     Ok(Some(chunk)) => match chunk {
                         ResponseChunk::Google(google) => {
                             for cand in google.candidates {

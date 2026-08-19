@@ -1,6 +1,6 @@
 [package]
 name = "anylm"
-version = "0.2.3"
+version = "0.3.0"
 description = "The universal API for all AI services that you know"
 keywords = ["lm", "api", "ai", "llm", "slm"]
 categories = ["development-tools", "rust-patterns"]
@@ -11,8 +11,8 @@ readme = "README.md"
 edition = "2024"
 
 [dependencies]
-atoman = { version = "0.2.24", features = ["stream"] }
-macron = { version = "0.4.3", features = ["derive", "string"] }
+atoman = { version = "0.4.5", features = ["channel"] }
+macron = { version = "0.5.0", features = ["derive", "string"] }
 base64 = "0.22.1"
 bytes = "1.11.1"
 chrono = { version = "0.4.44", features = ["serde"] }
@@ -23,6 +23,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 tiktoken-rs = "0.9.1"
 tokio = { version = "1.49.0", features = ["full"] }
+pearce = { version = "0.3.4", features = ["stream"] }
 
 [features]
 full = ["anthropic", "google"]

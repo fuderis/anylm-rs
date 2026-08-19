@@ -1,7 +1,8 @@
 use super::*;
 use crate::api::*;
 
-use atoman::{Stream as StreamHelper, StreamExt, StreamReader};
+use atoman::Receiver;
+use futures::StreamExt;
 use reqwest::header;
 use std::collections::HashMap;
 
@@ -77,7 +78,7 @@ impl OpenAiCompletions {
             .await?;
 
         let bytes_stream = response.bytes_stream().map(|r| r.map_err(Into::into));
-        let reader = StreamHelper::read::<ResponseChunk>(bytes_stream);
+        let reader = pearce::stream_reader::<ResponseChunk>(bytes_stream);
         let (tx, rx) = mpsc::unbounded_channel();
         let handle = Self::spawn_reader(reader, tx, messages);
 
@@ -85,7 +86,7 @@ impl OpenAiCompletions {
     }
 
     fn spawn_reader(
-        mut reader: StreamReader<ResponseChunk>,
+        mut reader: Receiver<ResponseChunk>,
         tx: mpsc::UnboundedSender<Result<Chunk>>,
         messages: Arc<Mutex<Messages>>,
     ) -> tokio::task::JoinHandle<()> {
@@ -96,11 +97,16 @@ impl OpenAiCompletions {
             let mut tool_buffers = HashMap::<usize, PartialToolCall>::new();
 
             loop {
-                if tx.is_closed() {
-                    return;
-                }
+                // extract the next chunk or exit immediately if rx is blocked by the client.
+                let res = tokio::select! {
+                    _ = tx.closed() => {
+                        // client disconnected — stopping reading the stream.
+                        return;
+                    }
+                    res = reader.recv() => res,
+                };
 
-                match reader.read().await {
+                match res {
                     Ok(Some(chunk)) => match chunk {
                         ResponseChunk::OpenAi(OpenAIChunk { choices }) => {
                             for choice in choices {
