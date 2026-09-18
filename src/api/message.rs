@@ -1,9 +1,5 @@
 use super::{Content, Role};
-use crate::{
-    api::{Image, ToolCall},
-    prelude::*,
-    utils,
-};
+use crate::{Image, api::ToolCall, prelude::*, utils};
 
 use chrono::{DateTime, Utc};
 

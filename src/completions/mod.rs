@@ -19,7 +19,7 @@ use reqwest::{Client, Proxy};
 use std::{sync::Arc, time::Duration};
 use tokio::sync::{Mutex, mpsc};
 
-/// The completions response stream reader
+/// Completions response stream reader.
 #[derive(Debug)]
 pub struct Stream {
     pub(crate) rx: mpsc::UnboundedReceiver<Result<Chunk>>,
@@ -38,7 +38,7 @@ impl Drop for Stream {
     }
 }
 
-/// The completions response chunk
+/// Completions response chunk.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Chunk {
@@ -46,7 +46,7 @@ pub enum Chunk {
     Tool(ToolCall),
 }
 
-/// Helper buffer for accumulating streaming tool calls
+/// Helper buffer for accumulating streaming tool calls.
 #[derive(Default, Debug)]
 pub(crate) struct PartialToolCall {
     pub id: String,
@@ -54,7 +54,7 @@ pub(crate) struct PartialToolCall {
     pub args_buf: String,
 }
 
-/// Base configuration for LM API chat completions
+/// Base configuration for LLM API chat completions.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Completions {
     #[serde(skip)]
@@ -121,7 +121,6 @@ impl Completions {
         }
     }
 
-    // main constructors for protocol providers
     pub fn openai() -> OpenAiCompletions {
         OpenAiCompletions(Self::new(ApiKind::OpenAi))
     }
@@ -136,7 +135,6 @@ impl Completions {
         GoogleCompletions(Self::new(ApiKind::Google))
     }
 
-    // builder methods directly for Completions
     pub fn version(mut self, version: impl Into<String>) -> Self {
         self.api_version = Some(version.into());
         self
@@ -213,7 +211,7 @@ impl Completions {
         self
     }
 
-    /// Checks whether the provider's default `base_url` is used
+    /// Checks whether the provider's default `base_url` is used.
     pub fn is_default_base_url(&self) -> bool {
         match self.base_url.as_deref() {
             None => true,
@@ -223,7 +221,7 @@ impl Completions {
         }
     }
 
-    /// Returns the resolved `base_url` (or default if not specified)
+    /// Returns resolved `base_url` (or default if not specified).
     pub fn resolve_base_url(&self) -> &str {
         self.base_url
             .as_deref()
@@ -231,7 +229,7 @@ impl Completions {
             .unwrap_or_else(|| self.api_kind.default_host())
     }
 
-    /// Returns the API key from the explicit field or default env var (if `base_url` is default)
+    /// Returns API key from the explicit field or default env var (if `base_url` is default).
     pub fn resolve_api_key(&self) -> String {
         if let Some(key) = &self.api_key
             && !key.is_empty()

@@ -1,26 +1,18 @@
+pub mod search;
+pub use search::Search;
+
 use crate::{api::*, chunk::ResponseError, options::Options, prelude::*};
 
 use reqwest::{Client, Proxy, header};
 use std::time::Duration;
 
-/// The embedding search optimization
-#[derive(Debug, Display, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum EmbeddingSearch {
-    /// Uses for save context
-    #[display(fmt = "search_document")]
-    Document,
-    /// Uses for search context
-    #[display(fmt = "search_query")]
-    Query,
-}
-
-/// The embeddings usage info
+/// Embeddings usage info.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Usage {
     pub total_tokens: usize,
 }
 
-/// The embeddings response
+/// Embeddings response.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EmbeddingsData {
     pub object: String,
@@ -29,7 +21,7 @@ pub struct EmbeddingsData {
     pub usage: Usage,
 }
 
-/// The embedding chunk
+/// Embedding chunk.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Embedding {
     pub object: String,
@@ -37,38 +29,38 @@ pub struct Embedding {
     pub embedding: Vec<f32>,
 }
 
-/// The LM API embeddings request
+/// Embeddings request.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Embeddings {
-    /// The API version
+    /// API version.
     #[serde(skip)]
     pub api_version: Option<String>,
-    /// The API standard
+    /// API standard.
     #[serde(skip)]
     pub api_kind: ApiKind,
-    /// The API authorization key
+    /// API authorization key.
     #[serde(skip)]
     pub api_key: Option<String>,
-    /// The custom server base URL
+    /// Custom server base URL.
     #[serde(skip)]
     pub base_url: Option<String>,
-    /// The proxy tunnel settings
+    /// Proxy tunnel settings.
     #[serde(skip)]
     pub proxy: Option<Proxy>,
-    /// The connection timeout
+    /// Connection timeout.
     #[serde(skip)]
     pub timeout: Duration,
-    /// The AI model name
+    /// AI model name.
     pub model: String,
-    /// The input texts
+    /// Input texts.
     pub input: Vec<String>,
-    /// The embedding search type optimization
+    /// Embedding search type optimization.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub search: Option<EmbeddingSearch>,
+    pub search: Option<Search>,
 }
 
 impl Embeddings {
-    /// Creates a new LM embeddings request
+    /// Creates new LM embeddings request.
     pub fn new(kind: ApiKind) -> Self {
         Self {
             api_kind: kind,
@@ -97,18 +89,18 @@ impl Embeddings {
         }
     }
 
-    /// Creates a new OpenAI embeddings request
+    /// Creates new OpenAI embeddings request.
     pub fn openai() -> Self {
         Self::new(ApiKind::OpenAi)
     }
 
-    /// Creates a new Anthropic embeddings request
+    /// Creates new Anthropic embeddings request.
     #[cfg(feature = "anthropic")]
     pub fn anthropic() -> Self {
         Self::new(ApiKind::Anthropic)
     }
 
-    /// Creates a new Google Gemini AI embeddings request
+    /// Creates new Google Gemini AI embeddings request.
     #[cfg(feature = "google")]
     pub fn google() -> Self {
         Self::new(ApiKind::Google)
@@ -180,22 +172,21 @@ impl Embeddings {
         self
     }
 
-    pub fn search(mut self, search: EmbeddingSearch) -> Self {
+    pub fn search(mut self, search: Search) -> Self {
         self.search = Some(search);
         self
     }
 
     pub fn document(self) -> Self {
-        self.search(EmbeddingSearch::Document)
+        self.search(Search::Document)
     }
 
     pub fn query(self) -> Self {
-        self.search(EmbeddingSearch::Query)
+        self.search(Search::Query)
     }
 
     // --- Dynamic Resolvers ---
 
-    /// Проверяет, используется ли дефолтный base_url провайдера
     pub fn is_default_base_url(&self) -> bool {
         match self.base_url.as_deref() {
             None => true,
@@ -205,7 +196,6 @@ impl Embeddings {
         }
     }
 
-    /// Возвращает итоговый base_url (или дефолтный)
     pub fn resolve_base_url(&self) -> &str {
         self.base_url
             .as_deref()
@@ -213,7 +203,6 @@ impl Embeddings {
             .unwrap_or_else(|| self.api_kind.default_host())
     }
 
-    /// Возвращает API-ключ: из явного поля, либо из дефолтного env_var (если base_url дефолтный)
     pub fn resolve_api_key(&self) -> String {
         if let Some(key) = &self.api_key
             && !key.is_empty()
@@ -243,12 +232,12 @@ impl Embeddings {
         )
     }
 
-    /// Sends the request to LM server
+    /// Sends request to LLM server.
     pub async fn send(mut self) -> Result<EmbeddingsData> {
         let url = self.build_url();
         let api_key = self.resolve_api_key();
 
-        // serialize request data:
+        // serialize request data
         let mut data = json::to_value(&self).map_err(Error::from)?;
         let obj = data.as_object_mut().unwrap();
 
@@ -268,7 +257,7 @@ impl Embeddings {
             .clone();
         }
 
-        // create client & configure proxy:
+        // create client & configure proxy
         let mut builder = Client::builder().timeout(self.timeout);
         if let Some(proxy) = self.proxy.take() {
             builder = builder.proxy(proxy).danger_accept_invalid_certs(true);
@@ -276,14 +265,14 @@ impl Embeddings {
 
         let client = builder.build()?;
 
-        // send request:
+        // send request
         #[allow(unused_mut)]
         let mut request = client
             .post(&url)
             .header(header::CONTENT_TYPE, "application/json")
             .json(&obj);
 
-        // set api key:
+        // set api key
         #[cfg(feature = "google")]
         if self.api_kind.is_google() {
             request = request.header("x-goog-api-key", &api_key);
@@ -298,12 +287,12 @@ impl Embeddings {
         let response = request.send().await.map_err(Error::from)?;
         let output = response.text().await?;
 
-        // check for an error:
+        // check for an error
         if let Some(e) = ResponseError::from_str(&output) {
             return Err(Error::ResponseError(e).into());
         }
 
-        // parse response:
+        // parse response
         let embeddings = json::from_str(&output)?;
 
         Ok(embeddings)

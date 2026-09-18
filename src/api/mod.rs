@@ -11,7 +11,7 @@ pub mod role;
 pub use role::Role;
 
 pub mod content;
-pub use content::{Content, Image};
+pub use content::Content;
 
 pub mod message;
 pub use message::{Message, Visibility};

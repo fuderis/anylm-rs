@@ -1,14 +1,11 @@
-use crate::{image, prelude::*};
-use std::borrow::Cow;
-use std::path::{Path, PathBuf};
+use crate::{image::Image, prelude::*};
 
-/// The image base64 url
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct Image {
-    pub url: String,
-}
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
 
-/// The message content
+/// Message content.
 #[derive(From, Debug, Clone, Eq, PartialEq)]
 #[from(Bytes, expr = Content::text(String::from_utf8_lossy(&value)))]
 #[from(String, with = Content::text)]
@@ -19,46 +16,42 @@ pub struct Image {
 pub enum Content {
     #[from(skip)]
     Text {
-        /// The message text
+        /// Message text.
         text: String,
     },
 
     #[from(skip)]
     Image {
-        /// The image base64 url
+        /// Image base64 url.
         image: Image,
-        /// The image detail level (low/high/auto)
+        /// Image detail level (low/high/auto).
         detail: Option<String>,
     },
 }
 
 impl Content {
-    /// Creates a new text content
+    /// Creates new text content.
     pub fn text(text: impl Into<String>) -> Self {
         Self::Text { text: text.into() }
     }
 
-    /// Creates a new image base64 url content
-    pub fn image_url(base64: impl Into<String>, detail: Option<String>) -> Result<Self> {
+    /// Creates new image content from base64-url.
+    pub fn image_url(base64_url: impl Into<String>, detail: Option<String>) -> Result<Self> {
         Ok(Self::Image {
-            image: Image {
-                url: image::base64(base64)?,
-            },
+            image: Image::from_base64(base64_url)?,
             detail,
         })
     }
 
-    /// Reads image file as base64 url
+    /// Creates new image content from file.
     pub fn image_file(path: impl AsRef<Path>, detail: Option<String>) -> Result<Self> {
         Ok(Self::Image {
-            image: Image {
-                url: image::read(path.as_ref())?,
-            },
+            image: Image::from_file(path.as_ref())?,
             detail,
         })
     }
 
-    /// Returns true if text content is empty
+    /// Returns true if text content is empty.
     pub fn is_empty(&self) -> bool {
         if let Self::Text { text } = self {
             text.is_empty()

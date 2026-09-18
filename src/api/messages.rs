@@ -1,10 +1,10 @@
-use super::{Content, Image, Message, Role, Visibility};
-use crate::{api::ToolCall, prelude::*};
+use super::{Content, Message, Role, Visibility};
+use crate::{Image, api::ToolCall, prelude::*};
 
 use std::{path::Path, sync::Arc};
 use tokio::{fs, sync::Mutex};
 
-/// The request messages
+/// Request messages.
 #[derive(Default, Debug, Clone, Eq, PartialEq)]
 pub struct Messages {
     pub messages: Vec<Message>,
@@ -12,7 +12,7 @@ pub struct Messages {
 }
 
 impl Messages {
-    /// Creates an empty messages list
+    /// Creates empty messages list.
     pub fn new() -> Self {
         Self {
             messages: vec![],
@@ -20,12 +20,12 @@ impl Messages {
         }
     }
 
-    /// Reads the messages from file
+    /// Reads messages from file.
     pub async fn read(path: impl AsRef<Path>) -> Result<Self> {
         let contents = fs::read_to_string(path.as_ref()).await?;
         let mut messages = Vec::new();
 
-        // read file lines:
+        // read file lines
         for line in contents.lines() {
             let line = line.trim();
             if !line.is_empty() {
@@ -43,7 +43,7 @@ impl Messages {
         Ok(this)
     }
 
-    /// Saves the messages to file
+    /// Saves messages to file.
     pub async fn save(&self, path: impl AsRef<Path>) -> Result<()> {
         let mut contents = String::new();
 
@@ -58,7 +58,7 @@ impl Messages {
         Ok(())
     }
 
-    /// Saves the last message to file
+    /// Saves last message to file.
     pub async fn save_last(&self, path: impl AsRef<Path>) -> Result<()> {
         let Some(last_msg) = self.messages.last() else {
             return Ok(());
@@ -79,7 +79,7 @@ impl Messages {
         Ok(())
     }
 
-    /// Saves the last N messages to file
+    /// Saves last N messages to file.
     pub async fn save_last_n(&self, path: impl AsRef<Path>, count: usize) -> Result<()> {
         if count == 0 || self.messages.is_empty() {
             return Ok(());
@@ -107,19 +107,19 @@ impl Messages {
         Ok(())
     }
 
-    /// Adds a message to request
+    /// Adds message to request.
     pub fn message(mut self, msg: Message) -> Self {
         self.tokens_count += msg.tokens_count;
         self.messages.push(msg);
         self
     }
-    /// Adds a message to request
+    /// Adds message to request.
     pub fn add_message(&mut self, msg: Message) {
         self.tokens_count += msg.tokens_count;
         self.messages.push(msg);
     }
 
-    /// Adds a messages to request
+    /// Adds messages to request.
     pub fn messages(mut self, msgs: Vec<Message>) -> Self {
         for msg in msgs {
             self.tokens_count += msg.tokens_count;
@@ -127,7 +127,7 @@ impl Messages {
         }
         self
     }
-    /// Adds a messages to request
+    /// Adds messages to request.
     pub fn add_messages(&mut self, msgs: Vec<Message>) {
         for msg in msgs {
             self.tokens_count += msg.tokens_count;
@@ -135,53 +135,53 @@ impl Messages {
         }
     }
 
-    /// Adds the system message to request
+    /// Adds system message to request.
     pub fn system(self, content: Vec<Content>) -> Self {
         self.message(Message::system(content))
     }
-    /// Adds the user message to request
+    /// Adds user message to request.
     pub fn user(self, content: Vec<Content>) -> Self {
         self.message(Message::user(content))
     }
-    /// Adds the assistant message to request
+    /// Adds assistant message to request.
     pub fn assistant(self, content: Vec<Content>, tool_calls: Vec<ToolCall>) -> Self {
         self.message(Message::assistant(content, tool_calls))
     }
-    /// Adds the tool message to request
+    /// Adds tool message to request.
     pub fn tool(self, tool_call_id: String, content: Vec<Content>) -> Self {
         self.message(Message::tool(content, tool_call_id))
     }
 
-    /// Adds the system message to request
+    /// Adds system message to request.
     pub fn add_system(&mut self, content: Vec<Content>) {
         self.add_message(Message::system(content));
     }
-    /// Adds the user message to request
+    /// Adds user message to request.
     pub fn add_user(&mut self, content: Vec<Content>) {
         self.add_message(Message::user(content));
     }
-    /// Adds the assistant message to request
+    /// Adds assistant message to request.
     pub fn add_assistant(&mut self, content: Vec<Content>, tool_calls: Vec<ToolCall>) {
         self.add_message(Message::assistant(content, tool_calls));
     }
-    /// Adds the tool message to request
+    /// Adds tool message to request.
     pub fn add_tool(&mut self, tool_call_id: String, content: Vec<Content>) {
         self.add_message(Message::tool(content, tool_call_id));
     }
 
-    /// Wraps into Arc<Mutex<_>>
+    /// Wraps into Arc<Mutex<_>>.
     pub fn wrap(self) -> Arc<Mutex<Self>> {
         arc_mutex!(self)
     }
 }
 
 impl Messages {
-    /// Finds the index of response message, or creates a new one
+    /// Finds index of response message, or creates a new one.
     fn find_or_create_index(&mut self, tool_call_id: Option<&str>) -> usize {
         let mut target_idx = None;
 
         match tool_call_id {
-            // assistant response:
+            // assistant response
             None => {
                 if let Some(last_msg) = self.messages.last() {
                     match last_msg.role {
@@ -204,7 +204,7 @@ impl Messages {
                 }
             }
 
-            // tool call response:
+            // tool call response
             Some(id) => {
                 if let Some((idx, _)) = self
                     .messages
@@ -218,7 +218,7 @@ impl Messages {
             }
         }
 
-        // return index or create a new one:
+        // return index or create a new one
         if let Some(idx) = target_idx {
             idx
         } else {
@@ -231,7 +231,7 @@ impl Messages {
         }
     }
 
-    /// Push a text content part into last message (assistant/tool)
+    /// Push text content part into last message (assistant/tool).
     pub fn push_str(&mut self, tool_call_id: Option<&str>, text_part: &str) {
         if text_part.is_empty() {
             return;
@@ -253,7 +253,7 @@ impl Messages {
         self.tokens_count += msg.count_tokens();
     }
 
-    /// Push a new content into last message (assistant/tool)
+    /// Push new content into last message (assistant/tool).
     pub fn push_content(&mut self, tool_call_id: Option<&str>, content: impl Into<Content>) {
         let content = content.into();
         if content.is_empty() {
@@ -270,7 +270,7 @@ impl Messages {
         self.tokens_count += msg.count_tokens();
     }
 
-    /// Push a new image content into last message (assistant/tool)
+    /// Push new image content into last message (assistant/tool).
     pub fn push_image(&mut self, tool_call_id: Option<&str>, image: Image, detail: Option<String>) {
         let content = Content::Image { image, detail };
 
@@ -284,7 +284,7 @@ impl Messages {
         self.tokens_count += msg.count_tokens();
     }
 
-    /// Removes messages from the context and returns them [> 0 - from start, < 0 - from end]
+    /// Removes messages from the context and returns them [> 0 - from start, < 0 - from end].
     pub fn slice(&mut self, pairs_count: isize) -> Vec<Message> {
         if pairs_count == 0 || self.messages.is_empty() {
             return vec![];
@@ -295,7 +295,7 @@ impl Messages {
         let mut found_pairs = 0;
 
         if pairs_count > 0 {
-            // slice from start:
+            // slice from start
             let mut inside_pair = false;
             for idx in 0..self.messages.len() {
                 let msg = &self.messages[idx];
@@ -318,7 +318,7 @@ impl Messages {
                 }
             }
         } else {
-            // slice from end:
+            // slice from end
             let mut inside_pair = false;
             for idx in (0..self.messages.len()).rev() {
                 let msg = &self.messages[idx];
@@ -344,7 +344,7 @@ impl Messages {
             }
         }
 
-        // collect messages:
+        // collect messages
         let mut retained = Vec::with_capacity(self.messages.len());
         let mut extracted = Vec::with_capacity(target_pairs * 2);
 
@@ -363,7 +363,7 @@ impl Messages {
         extracted
     }
 
-    /// Counts & updates the total tokens count
+    /// Counts & updates the total tokens count.
     pub fn count_tokens(&mut self) -> usize {
         let mut total = 0;
         for msg in &mut self.messages {
@@ -418,13 +418,13 @@ impl Messages {
         let filtered_messages: Vec<serde_json::Value> = self
             .messages
             .iter()
-            // 1. Exclude messages with the Debug visibility level
+            // exclude messages with the Debug visibility level
             .filter(|msg| msg.visibility != Visibility::Debug)
             .map(|msg| {
-                // 2. Serializing the message in Value
+                // serializing message in Value
                 let mut val = json::to_value(msg)?;
 
-                // 3. Removing the visibility field from the final JSON object
+                // removing visibility field from the final JSON object
                 if let serde_json::Value::Object(ref mut map) = val {
                     map.remove("visibility");
                 }
