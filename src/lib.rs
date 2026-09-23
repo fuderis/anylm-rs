@@ -10,7 +10,7 @@ pub mod image;
 pub use image::Image;
 
 pub mod api;
-pub use api::{Content, Message, Messages};
+pub use api::{Content, Message, Messages, Schema, SchemaKind};
 
 pub mod completions;
 pub use completions::{Chunk, Completions};

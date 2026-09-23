@@ -127,17 +127,6 @@ impl Tool {
             parameters_schema = parameters_schema.property(name, schema.clone(), is_required);
         }
 
-        // fix parameters schema (if no properties):
-        let has_props = parameters_schema
-            .properties
-            .as_ref()
-            .map(|props| !props.is_empty())
-            .unwrap_or(false);
-
-        if !has_props {
-            parameters_schema = parameters_schema.optional_property("_", Schema::null(""));
-        }
-
         // serializing raw structure:
         let mut v = serde_json::to_value(self)?;
 
