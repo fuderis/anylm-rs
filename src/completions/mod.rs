@@ -15,15 +15,15 @@ pub use google::GoogleCompletions;
 
 use crate::{api::*, chunk::*, options::Options, prelude::*};
 
+use atoman::{JoinHandle, Mutex, sync::mpsc};
 use reqwest::{Client, Proxy};
 use std::{sync::Arc, time::Duration};
-use tokio::sync::{Mutex, mpsc};
 
 /// Completions response stream reader.
 #[derive(Debug)]
 pub struct Stream {
     pub(crate) rx: mpsc::UnboundedReceiver<Result<Chunk>>,
-    pub(crate) handle: tokio::task::JoinHandle<()>,
+    pub(crate) handle: JoinHandle<()>,
 }
 
 impl Stream {

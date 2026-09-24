@@ -1,7 +1,7 @@
 use super::*;
 use crate::api::*;
 
-use atoman::Receiver;
+use atoman::{JoinHandle, Receiver};
 use futures::StreamExt;
 use reqwest::header;
 use std::collections::HashMap;
@@ -89,8 +89,8 @@ impl OpenAiCompletions {
         mut reader: Receiver<ResponseChunk>,
         tx: mpsc::UnboundedSender<Result<Chunk>>,
         messages: Arc<Mutex<Messages>>,
-    ) -> tokio::task::JoinHandle<()> {
-        tokio::spawn(async move {
+    ) -> JoinHandle<()> {
+        atoman::spawn(async move {
             let mut full_text = String::new();
             let mut tool_calls = vec![];
             let mut allocated_tool_ids = vec![];
@@ -98,7 +98,7 @@ impl OpenAiCompletions {
 
             loop {
                 // extract the next chunk or exit immediately if rx is blocked by the client.
-                let res = tokio::select! {
+                let res = atoman::select! {
                     _ = tx.closed() => {
                         // client disconnected — stopping reading the stream.
                         return;

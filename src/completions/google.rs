@@ -1,7 +1,7 @@
 use super::*;
 use crate::api::*;
 
-use atoman::Receiver;
+use atoman::{JoinHandle, Receiver};
 use futures::StreamExt;
 use reqwest::header;
 
@@ -113,14 +113,14 @@ impl GoogleCompletions {
         mut reader: Receiver<ResponseChunk>,
         tx: mpsc::UnboundedSender<Result<Chunk>>,
         messages: Arc<Mutex<Messages>>,
-    ) -> tokio::task::JoinHandle<()> {
-        tokio::spawn(async move {
+    ) -> JoinHandle<()> {
+        atoman::spawn(async move {
             let mut full_text = String::new();
             let mut tool_calls = vec![];
             let mut allocated_tool_ids = vec![];
 
             loop {
-                let res = tokio::select! {
+                let res = atoman::select! {
                     _ = tx.closed() => return,
                     res = reader.recv() => res,
                 };

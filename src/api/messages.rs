@@ -1,8 +1,8 @@
 use super::{Content, Message, Role, Visibility};
 use crate::{Image, api::ToolCall, prelude::*};
 
+use atoman::{fs, io, sync::Mutex};
 use std::{path::Path, sync::Arc};
-use tokio::{fs, sync::Mutex};
 
 /// Request messages.
 #[derive(Default, Debug, Clone, Eq, PartialEq)]
@@ -67,13 +67,13 @@ impl Messages {
         let mut json_line = json::to_string(last_msg)?;
         json_line.push('\n');
 
-        let mut file = tokio::fs::OpenOptions::new()
+        let mut file = fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(path.as_ref())
             .await?;
 
-        use tokio::io::AsyncWriteExt;
+        use io::AsyncWriteExt;
         file.write_all(json_line.as_bytes()).await?;
 
         Ok(())
@@ -95,13 +95,13 @@ impl Messages {
             contents.push('\n');
         }
 
-        let mut file = tokio::fs::OpenOptions::new()
+        let mut file = fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(path.as_ref())
             .await?;
 
-        use tokio::io::AsyncWriteExt;
+        use io::AsyncWriteExt;
         file.write_all(contents.as_bytes()).await?;
 
         Ok(())
@@ -171,7 +171,7 @@ impl Messages {
 
     /// Wraps into Arc<Mutex<_>>.
     pub fn wrap(self) -> Arc<Mutex<Self>> {
-        arc_mutex!(self)
+        arc!(Mutex::new(self))
     }
 }
 
