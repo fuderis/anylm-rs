@@ -41,7 +41,7 @@ checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
 
 [[package]]
 name = "anylm"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "atoman",
  "base64",
