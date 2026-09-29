@@ -41,9 +41,9 @@ checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
 
 [[package]]
 name = "anylm"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
- "anylm-schema",
+ "anylm-schema 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "atoman",
  "base64",
  "bytes",
@@ -61,6 +61,17 @@ dependencies = [
 [[package]]
 name = "anylm-schema"
 version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.115",
+]
+
+[[package]]
+name = "anylm-schema"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a82828247d809c61d936c682a266f41bae9cdc6f3c5303885efec84c5180d79c"
 dependencies = [
  "proc-macro2",
  "quote",
