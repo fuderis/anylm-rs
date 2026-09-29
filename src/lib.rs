@@ -13,7 +13,10 @@ pub use image::Image;
 pub use anylm_schema::Schema;
 
 pub mod api;
-pub use api::{Content, IntoSchema, JsonSchema, JsonSchemaKind, Message, Messages};
+pub use api::{
+    Content, IntoSchema, JsonSchema, JsonSchemaKind, Message, Messages, Tool, ToolCall,
+    ToolCallFunction,
+};
 
 pub mod completions;
 pub use completions::{Chunk, Completions};
