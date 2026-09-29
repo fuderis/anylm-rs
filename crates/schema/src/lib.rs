@@ -71,7 +71,6 @@ fn impl_derive_json_schema(input: &DeriveInput) -> syn::Result<TokenStream2> {
             .unwrap_or_else(|| field_ident.to_string());
         let field_desc = field_attrs.description.unwrap_or(field_doc);
 
-        // Если указан #[schema(serde_json)], подменяем тип на String / Option<String> для генерации схемы
         let is_type_option = is_option_type(field_ty);
 
         let field_schema_expr = if field_attrs.serde_json {
@@ -85,7 +84,6 @@ fn impl_derive_json_schema(input: &DeriveInput) -> syn::Result<TokenStream2> {
             }
         };
 
-        // Если задано описание поля (через doc-комментарий или атрибут) — обновляем его
         let desc_override = if !field_desc.is_empty() {
             quote! { field_schema.description = Some(#field_desc.to_string()); }
         } else {
@@ -113,8 +111,6 @@ fn impl_derive_json_schema(input: &DeriveInput) -> syn::Result<TokenStream2> {
             quote! {}
         };
 
-        // Флаг обязательности: если явно не задан в #[schema(optional/required)],
-        // то берется из состояния field_schema.optional
         let required_logic = if let Some(is_opt) = field_attrs.optional {
             let is_req = !is_opt;
             quote! { let is_req = #is_req; }
