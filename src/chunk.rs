@@ -8,19 +8,22 @@ pub enum ResponseChunk {
     Anthropic(AnthropicChunk),
     Google(GoogleChunk),
     Error(ResponseErrorMessage),
+    Ignored(JsonValue),
 }
 
 //       OPENAI:
 
 #[derive(Debug, Deserialize)]
 pub struct OpenAIChunk {
+    #[serde(default)]
     pub choices: Vec<OpenAIChoice>,
 }
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct OpenAIChoice {
-    pub delta: OpenAIDelta,
+    #[serde(default)]
+    pub delta: Option<OpenAIDelta>,
     #[serde(default)]
     pub finish_reason: Option<String>,
 }
@@ -30,6 +33,8 @@ pub struct OpenAIDelta {
     pub content: Option<String>,
     #[serde(default)]
     pub tool_calls: Option<Vec<ToolCallDelta>>,
+    #[serde(default)]
+    pub refusal: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]

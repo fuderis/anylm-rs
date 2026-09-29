@@ -75,7 +75,8 @@ impl OpenAiCompletions {
             )
             .json(&data_obj)
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
 
         let bytes_stream = response.bytes_stream().map(|r| r.map_err(Into::into));
         let reader = pearce::stream_reader::<ResponseChunk>(bytes_stream);
@@ -110,32 +111,34 @@ impl OpenAiCompletions {
                     Ok(Some(chunk)) => match chunk {
                         ResponseChunk::OpenAi(OpenAIChunk { choices }) => {
                             for choice in choices {
-                                if let Some(content) = choice.delta.content {
-                                    if !content.is_empty() {
-                                        full_text.push_str(&content);
-                                        if tx.send(Ok(Chunk::Text(content))).is_err() {
-                                            return;
+                                if let Some(delta) = choice.delta {
+                                    if let Some(content) = delta.content {
+                                        if !content.is_empty() {
+                                            full_text.push_str(&content);
+                                            if tx.send(Ok(Chunk::Text(content))).is_err() {
+                                                return;
+                                            }
                                         }
                                     }
-                                }
 
-                                if let Some(tc_list) = choice.delta.tool_calls {
-                                    for tc in tc_list {
-                                        if let Some(idx) = tc.index {
-                                            let entry = tool_buffers.entry(idx).or_default();
-                                            if let Some(id) = tc.id
-                                                && !id.is_empty()
-                                            {
-                                                entry.id = id;
-                                            }
-                                            if let Some(fn_delta) = tc.function {
-                                                if let Some(name) = fn_delta.name
-                                                    && !name.is_empty()
+                                    if let Some(tc_list) = delta.tool_calls {
+                                        for tc in tc_list {
+                                            if let Some(idx) = tc.index {
+                                                let entry = tool_buffers.entry(idx).or_default();
+                                                if let Some(id) = tc.id
+                                                    && !id.is_empty()
                                                 {
-                                                    entry.name = name;
+                                                    entry.id = id;
                                                 }
-                                                if let Some(args) = fn_delta.arguments {
-                                                    entry.args_buf.push_str(&args);
+                                                if let Some(fn_delta) = tc.function {
+                                                    if let Some(name) = fn_delta.name
+                                                        && !name.is_empty()
+                                                    {
+                                                        entry.name = name;
+                                                    }
+                                                    if let Some(args) = fn_delta.arguments {
+                                                        entry.args_buf.push_str(&args);
+                                                    }
                                                 }
                                             }
                                         }

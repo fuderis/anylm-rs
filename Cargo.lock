@@ -43,6 +43,7 @@ checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
 name = "anylm"
 version = "0.3.5"
 dependencies = [
+ "anylm-schema",
  "atoman",
  "base64",
  "bytes",
@@ -55,6 +56,15 @@ dependencies = [
  "serde",
  "serde_json",
  "tiktoken-rs",
+]
+
+[[package]]
+name = "anylm-schema"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.115",
 ]
 
 [[package]]

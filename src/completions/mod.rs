@@ -73,7 +73,7 @@ pub struct Completions {
     pub max_tokens: i32,
     pub temperature: f32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub schema: Option<Schema>,
+    pub schema: Option<JsonSchema>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<Tool>,
     pub tokens_count: usize,
@@ -196,7 +196,7 @@ impl Completions {
         self
     }
 
-    pub fn schema(mut self, schema: Schema) -> Self {
+    pub fn schema(mut self, schema: JsonSchema) -> Self {
         self.schema = Some(schema);
         self
     }
@@ -342,7 +342,7 @@ macro_rules! impl_completions_builders {
                 self
             }
 
-            pub fn schema(mut self, schema: Schema) -> Self {
+            pub fn schema(mut self, schema: JsonSchema) -> Self {
                 self.0.schema = Some(schema);
                 self
             }

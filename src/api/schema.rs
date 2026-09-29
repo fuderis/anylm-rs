@@ -3,7 +3,7 @@ use crate::prelude::*;
 /// The JSON-schema kind
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 #[serde(rename_all = "lowercase")]
-pub enum SchemaKind {
+pub enum JsonSchemaKind {
     Object,
     Array,
     String,
@@ -13,7 +13,7 @@ pub enum SchemaKind {
     Null,
 }
 
-impl SchemaKind {
+impl JsonSchemaKind {
     /// Returns true if this is `object` schema
     pub fn is_object(&self) -> bool {
         matches!(self, Self::Object)
@@ -45,7 +45,7 @@ impl SchemaKind {
     }
 }
 
-impl Default for SchemaKind {
+impl Default for JsonSchemaKind {
     fn default() -> Self {
         Self::Object
     }
@@ -53,10 +53,10 @@ impl Default for SchemaKind {
 
 /// The JSON-schema property
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct Schema {
+pub struct JsonSchema {
     /// The schema type
     #[serde(rename = "type")]
-    pub kind: SchemaKind,
+    pub kind: JsonSchemaKind,
     /// The schema description
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -72,10 +72,10 @@ pub struct Schema {
     pub maximum: Option<f64>,
     /// The array items type
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub items: Option<Box<Schema>>,
+    pub items: Option<Box<JsonSchema>>,
     /// The object properties
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub properties: Option<HashMap<String, Box<Schema>>>,
+    pub properties: Option<HashMap<String, Box<JsonSchema>>>,
     /// The required object properties
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub required: Option<HashSet<String>>,
@@ -86,9 +86,9 @@ pub struct Schema {
     pub additional_properties: Option<bool>,
 }
 
-impl Schema {
+impl JsonSchema {
     /// Creates a new schema
-    pub fn new(kind: SchemaKind, descr: impl Into<String>) -> Self {
+    pub fn new(kind: JsonSchemaKind, descr: impl Into<String>) -> Self {
         Self {
             kind,
             description: match descr.into() {
@@ -101,37 +101,37 @@ impl Schema {
 
     /// Creates an object schema
     pub fn object(descr: impl Into<String>) -> Self {
-        Self::new(SchemaKind::Object, descr)
+        Self::new(JsonSchemaKind::Object, descr)
     }
 
     /// Creates an array schema
     pub fn array(descr: impl Into<String>) -> Self {
-        Self::new(SchemaKind::Array, descr)
+        Self::new(JsonSchemaKind::Array, descr)
     }
 
     /// Creates a string schema
     pub fn string(descr: impl Into<String>) -> Self {
-        Self::new(SchemaKind::String, descr)
+        Self::new(JsonSchemaKind::String, descr)
     }
 
     /// Creates a number schema
     pub fn number(descr: impl Into<String>) -> Self {
-        Self::new(SchemaKind::Number, descr)
+        Self::new(JsonSchemaKind::Number, descr)
     }
 
     /// Creates a integer schema
     pub fn integer(descr: impl Into<String>) -> Self {
-        Self::new(SchemaKind::Integer, descr)
+        Self::new(JsonSchemaKind::Integer, descr)
     }
 
     /// Creates a boolean schema
     pub fn boolean(descr: impl Into<String>) -> Self {
-        Self::new(SchemaKind::Boolean, descr)
+        Self::new(JsonSchemaKind::Boolean, descr)
     }
 
     /// Creates a null schema
     pub fn null(descr: impl Into<String>) -> Self {
-        Self::new(SchemaKind::Null, descr)
+        Self::new(JsonSchemaKind::Null, descr)
     }
 
     /// Sets schema description
@@ -165,13 +165,13 @@ impl Schema {
     }
 
     /// Sets the array items schema
-    pub fn items(mut self, schema: Schema) -> Self {
+    pub fn items(mut self, schema: JsonSchema) -> Self {
         self.items.replace(Box::new(schema));
         self
     }
 
     /// Adds the object properties schema
-    pub fn properties(mut self, props: HashMap<impl Into<String>, Box<Schema>>) -> Self {
+    pub fn properties(mut self, props: HashMap<impl Into<String>, Box<JsonSchema>>) -> Self {
         self.properties
             .get_or_insert_default()
             .extend(props.into_iter().map(|(k, v)| (k.into(), v)));
@@ -179,7 +179,7 @@ impl Schema {
     }
 
     /// Adds the object property schema
-    pub fn property(mut self, name: impl Into<String>, schema: Schema, required: bool) -> Self {
+    pub fn property(mut self, name: impl Into<String>, schema: JsonSchema, required: bool) -> Self {
         let name = name.into();
         let reqs = self.required.get_or_insert_default();
 
@@ -194,12 +194,12 @@ impl Schema {
     }
 
     /// Adds the required property schema
-    pub fn required_property(self, name: impl Into<String>, schema: Schema) -> Self {
+    pub fn required_property(self, name: impl Into<String>, schema: JsonSchema) -> Self {
         self.property(name, schema, true)
     }
 
     /// Adds the optional property schema
-    pub fn optional_property(self, name: impl Into<String>, schema: Schema) -> Self {
+    pub fn optional_property(self, name: impl Into<String>, schema: JsonSchema) -> Self {
         self.property(name, schema, false)
     }
 
@@ -218,17 +218,13 @@ impl Schema {
     }
 }
 
-impl Schema {
+impl JsonSchema {
     /// Converts into `OpenAI` format
     pub fn to_openai_format(&self) -> Result<JsonValue> {
         let mut schema_json = self.to_json_schema()?;
 
-        // OpenAI Strict requires `additionalProperties: false` at all levels of the object:
-        if let Some(obj) = schema_json.as_object_mut() {
-            if obj.get("type").and_then(|t| t.as_str()) == Some("object") {
-                obj.insert("additionalProperties".to_string(), json!(false));
-            }
-        }
+        // OpenAI Strict requires `additionalProperties: false`, `properties`, and `required` on ALL object levels
+        Self::apply_openai_strict_rules(&mut schema_json);
 
         Ok(json!({
             "type": "json_schema",
@@ -240,11 +236,43 @@ impl Schema {
         }))
     }
 
+    /// Recursively applies OpenAI Strict Mode rules to all levels of the schema
+    fn apply_openai_strict_rules(value: &mut JsonValue) {
+        if let Some(obj) = value.as_object_mut() {
+            if obj.get("type").and_then(|t| t.as_str()) == Some("object") {
+                // 1. Every object MUST have additionalProperties: false
+                obj.insert("additionalProperties".to_string(), json!(false));
+
+                // 2. Every object MUST have "properties"
+                if !obj.contains_key("properties") {
+                    obj.insert("properties".to_string(), json!({}));
+                }
+
+                // 3. Every object MUST have "required" (even if empty)
+                if !obj.contains_key("required") {
+                    obj.insert("required".to_string(), json!([]));
+                }
+            }
+
+            // Recursively process object properties
+            if let Some(props) = obj.get_mut("properties").and_then(|p| p.as_object_mut()) {
+                for prop in props.values_mut() {
+                    Self::apply_openai_strict_rules(prop);
+                }
+            }
+
+            // Recursively process array items
+            if let Some(items) = obj.get_mut("items") {
+                Self::apply_openai_strict_rules(items);
+            }
+        }
+    }
+
     /// Converts into `Anthropic` (and others) format (output_config)
     pub fn to_anthropic_format(&self) -> Result<JsonValue> {
         let mut schema_json = self.to_json_schema()?;
 
-        // for most APIs, it is also better to explicitly prohibit unnecessary properties:
+        // For most APIs, explicitly prohibit additional properties:
         if let Some(obj) = schema_json.as_object_mut() {
             obj.insert("additionalProperties".to_string(), json!(false));
         }
@@ -269,7 +297,7 @@ impl Schema {
     }
 }
 
-impl Schema {
+impl JsonSchema {
     /// Converts into valid JSON-format
     pub fn to_json_schema(&self) -> Result<JsonValue> {
         let mut v = serde_json::to_value(self)?;
@@ -322,12 +350,12 @@ impl Schema {
                 }
 
                 // write the updated required back to the object:
-                if !required_set.is_empty() {
-                    let mut final_required: Vec<_> = required_set.into_iter().collect();
-                    final_required.sort();
-                    obj.insert("required".to_string(), serde_json::json!(final_required));
-                } else {
-                    obj.remove("required");
+                let mut final_required: Vec<_> = required_set.into_iter().collect();
+                final_required.sort();
+                obj.insert("required".to_string(), serde_json::json!(final_required));
+            } else if obj.get("type").and_then(|t| t.as_str()) == Some("object") {
+                if !obj.contains_key("required") {
+                    obj.insert("required".to_string(), json!([]));
                 }
             }
         }

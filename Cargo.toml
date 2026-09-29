@@ -1,6 +1,6 @@
 [package]
 name = "anylm"
-version = "0.3.5"
+version = "0.3.6"
 description = "The universal API for all AI services that you know"
 keywords = ["lm", "api", "ai", "llm", "slm"]
 categories = ["development-tools", "rust-patterns"]
@@ -10,7 +10,20 @@ repository = "https://github.com/fuderis/anylm-rs"
 readme = "README.md"
 edition = "2024"
 
+[workspace]
+members = ["crates/schema"]
+default-members = ["crates/schema"]
+resolver = "3"
+
+[workspace.dependencies]
+proc-macro2 = "1.0.95"
+quote = "1.0.39"
+syn = { version = "2.0.100", features = ["full", "parsing", "extra-traits"] }
+heck = "0.4"
+
 [dependencies]
+anylm-schema = { version = "0.1.0", optional = true }
+
 atoman = { version = "0.11.6", features = ["channel"] }
 macron = { version = "0.5.1", features = ["derive", "string"] }
 pearce = { version = "0.5.2", features = ["stream"] }
@@ -26,6 +39,7 @@ serde_json = "1.0.149"
 tiktoken-rs = "0.9.1"
 
 [features]
-full = ["anthropic", "google"]
+full = ["derive", "anthropic", "google"]
+derive = ["anylm-schema"]
 anthropic = []
 google = []

@@ -1,8 +1,11 @@
 pub mod kind;
 pub use kind::ApiKind;
 
+pub mod traits;
+pub use traits::IntoSchema;
+
 pub mod schema;
-pub use schema::{Schema, SchemaKind};
+pub use schema::{JsonSchema, JsonSchemaKind};
 
 pub mod tool;
 pub use tool::{Tool, ToolCall, ToolCallFunction};

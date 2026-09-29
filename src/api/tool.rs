@@ -1,4 +1,4 @@
-use super::Schema;
+use super::{IntoSchema, JsonSchema};
 use crate::prelude::*;
 
 /// The tool call function
@@ -41,13 +41,13 @@ pub struct Tool {
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    parameters: Option<Schema>,
+    parameters: Option<JsonSchema>,
     #[serde(skip_serializing_if = "HashMap::is_empty", default)]
-    properties: HashMap<String, Schema>,
+    properties: HashMap<String, JsonSchema>,
 }
 
 impl Tool {
-    /// Creates a new tool schema
+    /// Creates a new tool.
     pub fn new(name: impl Into<String>, descr: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -60,20 +60,42 @@ impl Tool {
         }
     }
 
+    /// Binds parameters schema.
+    pub fn schema(mut self, schema: JsonSchema) -> Self {
+        self.parameters = Some(schema);
+        self
+    }
+
+    /// Binds parameters schema from `IntoSchema`.
+    pub fn with_schema<T: IntoSchema>(mut self) -> Self {
+        self.parameters = Some(T::schema());
+        self
+    }
+
+    /// Creates a new tool typed from `IntoSchema`.
+    pub fn typed<T: IntoSchema>(name: impl Into<String>, descr: impl Into<String>) -> Self {
+        Self::new(name, descr).with_schema::<T>()
+    }
+
     /// Adds an argument
-    pub fn property(mut self, name: impl Into<String>, mut schema: Schema, required: bool) -> Self {
+    pub fn property(
+        mut self,
+        name: impl Into<String>,
+        mut schema: JsonSchema,
+        required: bool,
+    ) -> Self {
         schema.optional = Some(!required);
         self.properties.insert(name.into(), schema);
         self
     }
 
     /// Adds a required argument
-    pub fn required_property(self, name: impl Into<String>, schema: Schema) -> Self {
+    pub fn required_property(self, name: impl Into<String>, schema: JsonSchema) -> Self {
         self.property(name, schema, true)
     }
 
     /// Adds an optional argument
-    pub fn optional_property(self, name: impl Into<String>, schema: Schema) -> Self {
+    pub fn optional_property(self, name: impl Into<String>, schema: JsonSchema) -> Self {
         self.property(name, schema, false)
     }
 }
@@ -118,7 +140,7 @@ impl Tool {
         // init parameters field (or create new):
         let mut parameters_schema = match &self.parameters {
             Some(custom_schema) => custom_schema.clone(),
-            None => Schema::object(""),
+            None => JsonSchema::object(""),
         };
 
         // push properties into parameters:
@@ -135,12 +157,12 @@ impl Tool {
             obj.remove("properties");
 
             let mut params_json = serde_json::to_value(parameters_schema)?;
-            Schema::sanitize_json_schema(&mut params_json);
+            JsonSchema::sanitize_json_schema(&mut params_json);
 
             obj.insert("parameters".to_string(), params_json);
         }
 
-        Schema::sanitize_json_schema(&mut v);
+        JsonSchema::sanitize_json_schema(&mut v);
         Ok(v)
     }
 }

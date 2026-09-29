@@ -3,10 +3,8 @@ use anylm::{
     completions::{Chunk, Completions},
 };
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
-
-#[tokio::main]
-async fn main() -> Result<()> {
+#[atoman::main]
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // prepare messages
     let messages = Messages::new()
         .user(vec!["Hello, how are you doing?".into()])
