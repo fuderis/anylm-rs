@@ -1,4 +1,8 @@
 #![doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))]
+
+#[cfg(all(feature = "rustls", feature = "native-tls"))]
+compile_error!("Features 'rustls' and 'native-tls' cannot be enabled at the same time.");
+
 pub mod error;
 mod prelude;
 pub mod utils;
