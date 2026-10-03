@@ -261,7 +261,7 @@ impl Embeddings {
         let mut client = Client::tcp()
             .post(&url)
             .header(Header::ContentType, "application/json")
-            .json(&obj)?
+            .json(&obj)
             .timeout(self.timeout);
 
         if let Some(proxy) = self.proxy.take() {

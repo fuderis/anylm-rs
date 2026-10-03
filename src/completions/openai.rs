@@ -72,7 +72,7 @@ impl OpenAiCompletions {
                     }
                 ),
             )
-            .json(&data_obj)?
+            .json(&data_obj)
             .send()
             .await?
             .error_for_status()?;

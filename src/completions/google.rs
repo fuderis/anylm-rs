@@ -96,7 +96,7 @@ impl GoogleCompletions {
                     ""
                 },
             )
-            .json(&data_obj)?
+            .json(&data_obj)
             .send()
             .await?;
 

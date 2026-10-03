@@ -75,7 +75,7 @@ impl AnthropicCompletions {
                 },
             )
             .header("anthropic-version", api_version)
-            .json(&data_obj)?
+            .json(&data_obj)
             .send()
             .await?;
 
