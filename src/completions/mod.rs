@@ -16,7 +16,7 @@ pub use google::GoogleCompletions;
 use crate::{api::*, chunk::*, options::Options, prelude::*};
 
 use atoman::{JoinHandle, Mutex, sync::mpsc};
-use reqwest::{Client, Proxy};
+use pearce::{Client, Method, Proxy, Request};
 use std::{sync::Arc, time::Duration};
 
 /// Completions response stream reader.
@@ -248,12 +248,12 @@ impl Completions {
         String::new()
     }
 
-    pub(crate) fn build_client(&mut self) -> Result<Client> {
-        let mut builder = Client::builder().timeout(self.timeout);
+    pub(crate) fn build_client(&mut self, method: Method, url: &str) -> Result<Request> {
+        let mut client = Client::tcp().request(method, url).timeout(self.timeout);
         if let Some(proxy) = self.proxy.take() {
-            builder = builder.proxy(proxy).danger_accept_invalid_certs(true);
+            client = client.proxy(proxy).danger_accept_invalid_certs(true);
         }
-        Ok(builder.build()?)
+        Ok(client)
     }
 
     pub(crate) fn build_url(&self) -> String {

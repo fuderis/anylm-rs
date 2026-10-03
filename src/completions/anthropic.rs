@@ -3,7 +3,7 @@ use crate::api::*;
 
 use atoman::{JoinHandle, Receiver};
 use futures::StreamExt;
-use reqwest::header;
+use pearce::{Header, Method};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -62,11 +62,10 @@ impl AnthropicCompletions {
             .take()
             .unwrap_or_else(|| "2023-06-01".to_string());
 
-        let client = self.build_client()?;
-        let response = client
-            .post(&url)
-            .header(header::CONTENT_TYPE, "application/json")
-            .header(header::ACCEPT, "text/event-stream")
+        let response = self
+            .build_client(Method::Post, &url)?
+            .header(Header::ContentType, "application/json")
+            .header(Header::Accept, "text/event-stream")
             .header(
                 "x-api-key",
                 if let Some(key) = self.api_key.as_ref() {
@@ -76,7 +75,7 @@ impl AnthropicCompletions {
                 },
             )
             .header("anthropic-version", api_version)
-            .json(&data_obj)
+            .json(&data_obj)?
             .send()
             .await?;
 

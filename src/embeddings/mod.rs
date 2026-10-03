@@ -3,7 +3,7 @@ pub use search::Search;
 
 use crate::{api::*, chunk::ResponseError, options::Options, prelude::*};
 
-use reqwest::{Client, Proxy, header};
+use pearce::{Client, Header, Proxy};
 use std::time::Duration;
 
 /// Embeddings usage info.
@@ -238,7 +238,7 @@ impl Embeddings {
         let api_key = self.resolve_api_key();
 
         // serialize request data
-        let mut data = json::to_value(&self).map_err(Error::from)?;
+        let mut data = json::to_value(&self)?;
         let obj = data.as_object_mut().unwrap();
 
         #[cfg(feature = "google")]
@@ -258,33 +258,31 @@ impl Embeddings {
         }
 
         // create client & configure proxy
-        let mut builder = Client::builder().timeout(self.timeout);
+        let mut client = Client::tcp()
+            .post(&url)
+            .header(Header::ContentType, "application/json")
+            .json(&obj)?
+            .timeout(self.timeout);
+
         if let Some(proxy) = self.proxy.take() {
-            builder = builder.proxy(proxy).danger_accept_invalid_certs(true);
+            client = client.proxy(proxy).danger_accept_invalid_certs(true);
         }
 
-        let client = builder.build()?;
-
-        // send request
-        #[allow(unused_mut)]
-        let mut request = client
-            .post(&url)
-            .header(header::CONTENT_TYPE, "application/json")
-            .json(&obj);
+        let mut request = client;
 
         // set api key
         #[cfg(feature = "google")]
         if self.api_kind.is_google() {
             request = request.header("x-goog-api-key", &api_key);
         } else {
-            request = request.header(header::AUTHORIZATION, format!("Bearer {api_key}"));
+            request = request.header(Header::Authorization, format!("Bearer {api_key}"));
         }
         #[cfg(not(feature = "google"))]
         {
-            request = request.header(header::AUTHORIZATION, format!("Bearer {api_key}"));
+            request = request.header(Header::Authorization, format!("Bearer {api_key}"));
         }
 
-        let response = request.send().await.map_err(Error::from)?;
+        let response = request.send().await?;
         let output = response.text().await?;
 
         // check for an error

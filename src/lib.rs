@@ -31,4 +31,4 @@ pub use embeddings::{Embedding, Embeddings, EmbeddingsData, Search};
 pub mod chunk;
 
 pub use bytes::{self, Bytes};
-pub use reqwest::{self, Proxy};
+pub use pearce::{self, Proxy};

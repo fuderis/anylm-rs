@@ -3,7 +3,7 @@ use crate::api::*;
 
 use atoman::{JoinHandle, Receiver};
 use futures::StreamExt;
-use reqwest::header;
+use pearce::{Header, Method};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GoogleCompletions(pub Completions);
@@ -84,11 +84,10 @@ impl GoogleCompletions {
             data_obj.insert("tools".to_string(), JsonValue::Array(tools_json));
         }
 
-        let client = self.build_client()?;
-        let response = client
-            .post(&url)
-            .header(header::CONTENT_TYPE, "application/json")
-            .header(header::ACCEPT, "text/event-stream")
+        let response = self
+            .build_client(Method::Post, &url)?
+            .header(Header::ContentType, "application/json")
+            .header(Header::Accept, "text/event-stream")
             .header(
                 "x-goog-api-key",
                 if let Some(key) = self.api_key.as_ref() {
@@ -97,7 +96,7 @@ impl GoogleCompletions {
                     ""
                 },
             )
-            .json(&data_obj)
+            .json(&data_obj)?
             .send()
             .await?;
 

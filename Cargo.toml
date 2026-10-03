@@ -1,6 +1,6 @@
 [package]
 name = "anylm"
-version = "0.3.8"
+version = "0.4.0"
 description = "The universal API for all AI services that you know"
 keywords = ["lm", "api", "ai", "llm", "slm"]
 categories = ["development-tools", "rust-patterns"]
@@ -24,16 +24,17 @@ heck = "0.4"
 [dependencies]
 anylm-schema = { version = "0.1.0", optional = true }
 
-atoman = { version = "0.11.6", features = ["channel"] }
+atoman = { version = "0.11.8", features = ["channel"] }
 macron = { version = "0.5.1", features = ["derive", "string"] }
-pearce = { version = "0.5.2", features = ["stream"] }
+pearce = { version = "0.6.0", features = ["stream", "client"] }
+
+# pearce = { path = "../pearce", features = ["stream", "client"] }
 
 base64 = "0.22.1"
 bytes = "1.11.1"
 chrono = { version = "0.4.44", features = ["serde"] }
 futures = "0.3.31"
 regex = "1.12.3"
-reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "socks"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 tiktoken-rs = "0.9.1"
@@ -41,8 +42,8 @@ tiktoken-rs = "0.9.1"
 [features]
 default = ["rustls"]
 
-rustls = ["reqwest/rustls"]
-native-tls = ["reqwest/native-tls"]
+rustls = ["pearce/rustls"]
+native-tls = ["pearce/native-tls"]
 
 full = ["derive", "anthropic", "google", "rustls"]
 derive = ["anylm-schema"]

@@ -41,7 +41,7 @@ checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
 
 [[package]]
 name = "anylm"
-version = "0.3.8"
+version = "0.4.0"
 dependencies = [
  "anylm-schema 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "atoman",
@@ -52,7 +52,6 @@ dependencies = [
  "macron",
  "pearce",
  "regex",
- "reqwest",
  "serde",
  "serde_json",
  "tiktoken-rs",
@@ -111,9 +110,9 @@ dependencies = [
 
 [[package]]
 name = "atoman"
-version = "0.11.6"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6846bfbf8dcf8b748dfda9dbb79eb3a7ad59e974a7fc50af79988391fabfb82d"
+checksum = "9e93c3dbd203d23c34c3ed4a205f7c8b0e17ecdaa9303083f1cb01d91e6bfc9f"
 dependencies = [
  "ahash",
  "arc-swap",
@@ -1097,14 +1096,16 @@ dependencies = [
 
 [[package]]
 name = "pearce"
-version = "0.5.2"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b21a1fc6740546aa2e5491dd7b29b28ee83a1d360e5a791ac7c9128317ee307a"
+checksum = "b893f5e51e335480e42e57f532f36e28fc6b5f9424ab91cb6ff840bcd4d5fbfb"
 dependencies = [
  "atoman",
  "bytes",
  "futures",
+ "hyper",
  "macron",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",
@@ -1378,7 +1379,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1660,7 +1661,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

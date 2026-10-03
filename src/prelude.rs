@@ -10,7 +10,7 @@ pub(crate) type Result<T> = std::result::Result<T, DynError>;
 pub(crate) use std::result::Result as StdResult;
 
 pub use bytes::Bytes;
-pub use reqwest::Proxy;
+pub use pearce::Proxy;
 
 pub(crate) use serde::{Deserialize, Serialize};
 pub(crate) use serde_json::{self as json, Value as JsonValue, json};

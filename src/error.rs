@@ -4,10 +4,6 @@ use macron::{Display, Error, From};
 /// The error
 #[derive(Debug, Display, Error, From)]
 pub enum Error {
-    Io(std::io::Error),
-    Json(serde_json::Error),
-    Request(reqwest::Error),
-
     #[display(fmt = "Context is overflowing, try deleting old messages.")]
     ContextOverflowing,
 
