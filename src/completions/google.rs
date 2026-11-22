@@ -1,9 +1,9 @@
 use super::*;
 use crate::api::*;
 
-use atoman::{JoinHandle, Receiver};
+use atoman::JoinHandle;
 use futures::StreamExt;
-use pearce::{Header, Method};
+use pearce::{Header, Method, Receiver};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GoogleCompletions(pub Completions);
@@ -24,7 +24,7 @@ impl std::ops::DerefMut for GoogleCompletions {
 impl_completions_builders!(GoogleCompletions);
 
 impl GoogleCompletions {
-    pub async fn send(&mut self, messages: Arc<Mutex<Messages>>) -> Result<Stream> {
+    pub async fn send(&mut self, messages: Arc<Mutex<Messages>>) -> Result<Stream, Error> {
         let url = self.build_url();
 
         let mut data = json::to_value(&self.0)?;
@@ -110,7 +110,7 @@ impl GoogleCompletions {
 
     fn spawn_reader(
         mut reader: Receiver<ResponseChunk>,
-        tx: mpsc::UnboundedSender<Result<Chunk>>,
+        tx: mpsc::UnboundedSender<Result<Chunk, DynError>>,
         messages: Arc<Mutex<Messages>>,
     ) -> JoinHandle<()> {
         atoman::spawn(async move {

@@ -113,7 +113,7 @@ impl Embeddings {
         self
     }
 
-    pub fn read_key(self, env_var: &str) -> Result<Self> {
+    pub fn read_key(self, env_var: &str) -> Result<Self, Error> {
         let key = std::env::var(env_var)?;
         Ok(self.key(key))
     }
@@ -233,7 +233,7 @@ impl Embeddings {
     }
 
     /// Sends request to LLM server.
-    pub async fn send(mut self) -> Result<EmbeddingsData> {
+    pub async fn send(mut self) -> Result<EmbeddingsData, Error> {
         let url = self.build_url();
         let api_key = self.resolve_api_key();
 
@@ -298,9 +298,9 @@ impl Embeddings {
 }
 
 impl TryFrom<Options> for Embeddings {
-    type Error = DynError;
+    type Error = Error;
 
-    fn try_from(ops: Options) -> Result<Self> {
+    fn try_from(ops: Options) -> Result<Self, Error> {
         let mut this = Self::new(ops.kind).model(ops.model);
 
         if let Some(base_url) = ops.base_url {

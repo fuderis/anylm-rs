@@ -36,7 +36,7 @@ impl Content {
     }
 
     /// Creates new image content from base64-url.
-    pub fn image_url(base64_url: impl Into<String>, detail: Option<String>) -> Result<Self> {
+    pub fn image_url(base64_url: impl Into<String>, detail: Option<String>) -> Result<Self, Error> {
         Ok(Self::Image {
             image: Image::from_base64(base64_url)?,
             detail,
@@ -44,7 +44,7 @@ impl Content {
     }
 
     /// Creates new image content from file.
-    pub fn image_file(path: impl AsRef<Path>, detail: Option<String>) -> Result<Self> {
+    pub fn image_file(path: impl AsRef<Path>, detail: Option<String>) -> Result<Self, Error> {
         Ok(Self::Image {
             image: Image::from_file(path.as_ref())?,
             detail,
@@ -62,7 +62,7 @@ impl Content {
 }
 
 impl ::serde::Serialize for Content {
-    fn serialize<S>(&self, se: S) -> StdResult<S::Ok, S::Error>
+    fn serialize<S>(&self, se: S) -> Result<S::Ok, S::Error>
     where
         S: ::serde::Serializer,
     {
@@ -97,7 +97,7 @@ impl<'de> serde::de::Visitor<'de> for ContentVisitor {
         formatter.write_str("struct Content with type field")
     }
 
-    fn visit_map<V>(self, mut map: V) -> StdResult<Self::Value, V::Error>
+    fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
     where
         V: ::serde::de::MapAccess<'de>,
     {
@@ -162,7 +162,7 @@ impl<'de> serde::de::Visitor<'de> for ContentVisitor {
 }
 
 impl<'de> serde::Deserialize<'de> for Content {
-    fn deserialize<D>(de: D) -> StdResult<Self, D::Error>
+    fn deserialize<D>(de: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {

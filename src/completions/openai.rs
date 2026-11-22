@@ -1,9 +1,9 @@
 use super::*;
 use crate::api::*;
 
-use atoman::{JoinHandle, Receiver};
+use atoman::JoinHandle;
 use futures::StreamExt;
-use pearce::{Header, Method};
+use pearce::{Header, Method, Receiver};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -25,7 +25,7 @@ impl std::ops::DerefMut for OpenAiCompletions {
 impl_completions_builders!(OpenAiCompletions);
 
 impl OpenAiCompletions {
-    pub async fn send(&mut self, messages: Arc<Mutex<Messages>>) -> Result<Stream> {
+    pub async fn send(&mut self, messages: Arc<Mutex<Messages>>) -> Result<Stream, Error> {
         let url = self.build_url();
 
         let mut data = json::to_value(&self.0)?;
@@ -87,7 +87,7 @@ impl OpenAiCompletions {
 
     fn spawn_reader(
         mut reader: Receiver<ResponseChunk>,
-        tx: mpsc::UnboundedSender<Result<Chunk>>,
+        tx: mpsc::UnboundedSender<Result<Chunk, DynError>>,
         messages: Arc<Mutex<Messages>>,
     ) -> JoinHandle<()> {
         atoman::spawn(async move {
@@ -165,7 +165,7 @@ impl OpenAiCompletions {
                     },
                     Ok(None) => break,
                     Err(e) => {
-                        let _ = tx.send(Err(e.into()));
+                        let _ = tx.send(Err(e));
                         break;
                     }
                 }
@@ -190,7 +190,7 @@ impl OpenAiCompletions {
         tool_buffers: &mut HashMap<usize, PartialToolCall>,
         tool_calls: &mut Vec<ToolCall>,
         allocated_tool_ids: &mut Vec<String>,
-        tx: &mpsc::UnboundedSender<Result<Chunk>>,
+        tx: &mpsc::UnboundedSender<Result<Chunk, DynError>>,
     ) {
         for (_, buf) in tool_buffers.drain() {
             if buf.name.is_empty() {

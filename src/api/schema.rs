@@ -220,7 +220,7 @@ impl JsonSchema {
 
 impl JsonSchema {
     /// Converts into `OpenAI` format
-    pub fn to_openai_format(&self) -> Result<JsonValue> {
+    pub fn to_openai_format(&self) -> Result<JsonValue, Error> {
         let mut schema_json = self.to_json_schema()?;
 
         // OpenAI Strict requires `additionalProperties: false`, `properties`, and `required` on ALL object levels
@@ -269,7 +269,7 @@ impl JsonSchema {
     }
 
     /// Converts into `Anthropic` (and others) format (output_config)
-    pub fn to_anthropic_format(&self) -> Result<JsonValue> {
+    pub fn to_anthropic_format(&self) -> Result<JsonValue, Error> {
         let mut schema_json = self.to_json_schema()?;
 
         // For most APIs, explicitly prohibit additional properties:
@@ -286,7 +286,7 @@ impl JsonSchema {
     }
 
     /// Converts into `Google` format
-    pub fn to_google_format(&self) -> Result<JsonValue> {
+    pub fn to_google_format(&self) -> Result<JsonValue, Error> {
         let schema_json = self.to_json_schema()?;
 
         // Google requires a MIME type to activate JSON mode:
@@ -299,7 +299,7 @@ impl JsonSchema {
 
 impl JsonSchema {
     /// Converts into valid JSON-format
-    pub fn to_json_schema(&self) -> Result<JsonValue> {
+    pub fn to_json_schema(&self) -> Result<JsonValue, Error> {
         let mut v = serde_json::to_value(self)?;
 
         Self::sanitize_json_schema(&mut v);

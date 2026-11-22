@@ -21,7 +21,7 @@ impl Messages {
     }
 
     /// Reads messages from file.
-    pub async fn read(path: impl AsRef<Path>) -> Result<Self> {
+    pub async fn read(path: impl AsRef<Path>) -> Result<Self, Error> {
         let contents = fs::read_to_string(path.as_ref()).await?;
         let mut messages = Vec::new();
 
@@ -44,7 +44,7 @@ impl Messages {
     }
 
     /// Saves messages to file.
-    pub async fn save(&self, path: impl AsRef<Path>) -> Result<()> {
+    pub async fn save(&self, path: impl AsRef<Path>) -> Result<(), Error> {
         let mut contents = String::new();
 
         // write file lines:
@@ -59,7 +59,7 @@ impl Messages {
     }
 
     /// Saves last message to file.
-    pub async fn save_last(&self, path: impl AsRef<Path>) -> Result<()> {
+    pub async fn save_last(&self, path: impl AsRef<Path>) -> Result<(), Error> {
         let Some(last_msg) = self.messages.last() else {
             return Ok(());
         };
@@ -80,7 +80,7 @@ impl Messages {
     }
 
     /// Saves last N messages to file.
-    pub async fn save_last_n(&self, path: impl AsRef<Path>, count: usize) -> Result<()> {
+    pub async fn save_last_n(&self, path: impl AsRef<Path>, count: usize) -> Result<(), Error> {
         if count == 0 || self.messages.is_empty() {
             return Ok(());
         }
@@ -375,7 +375,7 @@ impl Messages {
 }
 
 impl Serialize for Messages {
-    fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -384,7 +384,7 @@ impl Serialize for Messages {
 }
 
 impl<'de> Deserialize<'de> for Messages {
-    fn deserialize<D>(deserializer: D) -> StdResult<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
@@ -414,7 +414,7 @@ impl From<Vec<Message>> for Messages {
 impl Messages {
     /// Serializes messages to JSON string, filtering out `Debug` messages
     /// and removing the `visibility` field from the result.
-    pub fn to_json(&self) -> Result<JsonValue> {
+    pub fn to_json(&self) -> Result<JsonValue, Error> {
         let filtered_messages: Vec<serde_json::Value> = self
             .messages
             .iter()
@@ -425,13 +425,13 @@ impl Messages {
                 let mut val = json::to_value(msg)?;
 
                 // removing visibility field from the final JSON object
-                if let serde_json::Value::Object(ref mut map) = val {
+                if let JsonValue::Object(ref mut map) = val {
                     map.remove("visibility");
                 }
 
-                Ok(val)
+                Ok::<JsonValue, Error>(val)
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         // serializing the resulting array into a string
         let json = json::to_value(&filtered_messages)?;

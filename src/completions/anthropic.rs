@@ -1,9 +1,9 @@
 use super::*;
 use crate::api::*;
 
-use atoman::{JoinHandle, Receiver};
+use atoman::JoinHandle;
 use futures::StreamExt;
-use pearce::{Header, Method};
+use pearce::{Header, Method, Receiver};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -25,7 +25,7 @@ impl std::ops::DerefMut for AnthropicCompletions {
 impl_completions_builders!(AnthropicCompletions);
 
 impl AnthropicCompletions {
-    pub async fn send(&mut self, messages: Arc<Mutex<Messages>>) -> Result<Stream> {
+    pub async fn send(&mut self, messages: Arc<Mutex<Messages>>) -> Result<Stream, Error> {
         let url = self.build_url();
 
         let mut data = json::to_value(&self.0)?;
@@ -89,7 +89,7 @@ impl AnthropicCompletions {
 
     fn spawn_reader(
         mut reader: Receiver<ResponseChunk>,
-        tx: mpsc::UnboundedSender<Result<Chunk>>,
+        tx: mpsc::UnboundedSender<Result<Chunk, DynError>>,
         messages: Arc<Mutex<Messages>>,
     ) -> JoinHandle<()> {
         atoman::spawn(async move {
@@ -177,7 +177,7 @@ impl AnthropicCompletions {
         buf: PartialToolCall,
         tool_calls: &mut Vec<ToolCall>,
         allocated_tool_ids: &mut Vec<String>,
-        tx: &mpsc::UnboundedSender<Result<Chunk>>,
+        tx: &mpsc::UnboundedSender<Result<Chunk, DynError>>,
     ) {
         if buf.name.is_empty() {
             return;

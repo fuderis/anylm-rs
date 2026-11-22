@@ -22,12 +22,12 @@ use std::{sync::Arc, time::Duration};
 /// Completions response stream reader.
 #[derive(Debug)]
 pub struct Stream {
-    pub(crate) rx: mpsc::UnboundedReceiver<Result<Chunk>>,
+    pub(crate) rx: mpsc::UnboundedReceiver<Result<Chunk, DynError>>,
     pub(crate) handle: JoinHandle<()>,
 }
 
 impl Stream {
-    pub async fn next(&mut self) -> Option<Result<Chunk>> {
+    pub async fn next(&mut self) -> Option<Result<Chunk, DynError>> {
         self.rx.recv().await
     }
 }
@@ -140,7 +140,7 @@ impl Completions {
         self
     }
 
-    pub fn read_key(self, env_var: &str) -> Result<Self> {
+    pub fn read_key(self, env_var: &str) -> Result<Self, Error> {
         let key = std::env::var(env_var)?;
         Ok(self.key(key))
     }
@@ -248,7 +248,7 @@ impl Completions {
         String::new()
     }
 
-    pub(crate) fn build_client(&mut self, method: Method, url: &str) -> Result<Request> {
+    pub(crate) fn build_client(&mut self, method: Method, url: &str) -> Result<Request, Error> {
         let mut client = Client::tcp().request(method, url).timeout(self.timeout);
         if let Some(proxy) = self.proxy.take() {
             client = client.proxy(proxy).danger_accept_invalid_certs(true);
@@ -267,7 +267,7 @@ impl Completions {
         )
     }
 
-    pub async fn send(self, messages: Arc<Mutex<Messages>>) -> Result<Stream> {
+    pub async fn send(self, messages: Arc<Mutex<Messages>>) -> Result<Stream, Error> {
         match self.api_kind {
             ApiKind::OpenAi => OpenAiCompletions(self).send(messages).await,
             #[cfg(feature = "anthropic")]
@@ -286,7 +286,7 @@ macro_rules! impl_completions_builders {
                 self
             }
 
-            pub fn read_key(mut self, env_var: &str) -> Result<Self> {
+            pub fn read_key(mut self, env_var: &str) -> Result<Self, Error> {
                 self.0.api_key = Some(std::env::var(env_var)?);
                 Ok(self)
             }
@@ -363,9 +363,9 @@ macro_rules! impl_completions_builders {
 pub(crate) use impl_completions_builders;
 
 impl TryFrom<Options> for Completions {
-    type Error = DynError;
+    type Error = Error;
 
-    fn try_from(ops: Options) -> Result<Self> {
+    fn try_from(ops: Options) -> Result<Self, Error> {
         let mut this = Self::new(ops.kind)
             .model(ops.model)
             .max_tokens(ops.max_tokens.unwrap_or(8096))

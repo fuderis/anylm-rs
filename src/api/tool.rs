@@ -11,7 +11,7 @@ pub struct ToolCallFunction {
 
 impl ToolCallFunction {
     /// Parses the function arguments
-    pub fn parse_args<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
+    pub fn parse_args<T: serde::de::DeserializeOwned>(&self) -> Result<T, Error> {
         Ok(serde_json::from_str(&self.json_str)?)
     }
 }
@@ -29,7 +29,7 @@ pub struct ToolCall {
 
 impl ToolCall {
     /// Parses the function arguments
-    pub fn parse_args<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
+    pub fn parse_args<T: serde::de::DeserializeOwned>(&self) -> Result<T, Error> {
         Ok(serde_json::from_str(&self.func.json_str)?)
     }
 }
@@ -102,7 +102,7 @@ impl Tool {
 
 impl Tool {
     /// Converts into `OpenAI` format: {"type": "function", "function": {...}}
-    pub fn to_openai_format(&self) -> Result<JsonValue> {
+    pub fn to_openai_format(&self) -> Result<JsonValue, Error> {
         let tool_json = self.to_json_tool()?;
 
         Ok(json!({
@@ -112,7 +112,7 @@ impl Tool {
     }
 
     /// Converts into `Anthropic` format: replace "parameters" to "input_schema"
-    pub fn to_anthropic_format(&self) -> Result<JsonValue> {
+    pub fn to_anthropic_format(&self) -> Result<JsonValue, Error> {
         let mut tool_json = self.to_json_tool()?;
 
         if let Some(obj) = tool_json.as_object_mut() {
@@ -125,7 +125,7 @@ impl Tool {
     }
 
     /// Converts into `Google` format: {"function_declarations": [...]}
-    pub fn to_google_format(&self) -> Result<JsonValue> {
+    pub fn to_google_format(&self) -> Result<JsonValue, Error> {
         let tool_json = self.to_json_tool()?;
 
         Ok(json!({
@@ -136,7 +136,7 @@ impl Tool {
 
 impl Tool {
     /// Converts into valid JSON-format
-    pub fn to_json_tool(&self) -> Result<JsonValue> {
+    pub fn to_json_tool(&self) -> Result<JsonValue, Error> {
         // init parameters field (or create new):
         let mut parameters_schema = match &self.parameters {
             Some(custom_schema) => custom_schema.clone(),
