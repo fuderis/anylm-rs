@@ -41,10 +41,10 @@ checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
 
 [[package]]
 name = "anylm"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anylm-schema 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "atoman 0.14.0",
+ "atoman",
  "base64",
  "bytes",
  "chrono",
@@ -110,9 +110,9 @@ dependencies = [
 
 [[package]]
 name = "atoman"
-version = "0.13.2"
+version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "202ce6f1db9d52da6560ac7332fec9a76fa1ae8ea43a9aec53073129535ba999"
+checksum = "a8cc213666d2f90c5ed26861d55434f2baaf81e51dfb4d1c9a6f9749fc2c48c5"
 dependencies = [
  "ahash",
  "arc-swap",
@@ -121,20 +121,6 @@ dependencies = [
  "once_cell",
  "serde",
  "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "atoman"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6539c4a62f5a8ad32e7511817d622d4c053acfd812d17abf5ae5fbae6c2db24"
-dependencies = [
- "ahash",
- "arc-swap",
- "atoman-macros",
- "macron 0.6.1",
- "once_cell",
  "tokio",
 ]
 
@@ -875,7 +861,6 @@ dependencies = [
  "macron-impl-error",
  "macron-impl-from 0.2.0",
  "macron-impl-into 0.2.0",
- "macron-path",
  "macron-regex",
  "macron-str",
 ]
@@ -886,10 +871,13 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0dba62b950e879f7822ef8444c36393b58eae54324a0902a57c16ca7ec1cc44"
 dependencies = [
+ "async-recursion",
+ "async-trait",
  "macron-impl-display",
  "macron-impl-error",
  "macron-impl-from 0.3.0",
  "macron-impl-into 0.3.0",
+ "macron-path",
  "macron-regex",
  "macron-str",
 ]
@@ -1105,15 +1093,15 @@ dependencies = [
 
 [[package]]
 name = "pearce"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7eec76f3d0f8f58115860bc526d692e67e08be185c6aa763656f8c4f5de3a5a4"
+checksum = "3c1e5adeec6be30c5fdabfb94fbc60b889d5de310efdda51ffa63cfeb09a00a1"
 dependencies = [
- "atoman 0.13.2",
+ "atoman",
  "bytes",
  "futures",
  "hyper",
- "macron 0.6.1",
+ "macron 0.7.0",
  "reqwest",
  "serde",
  "serde_json",

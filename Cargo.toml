@@ -3,7 +3,7 @@ name = "anylm"
 description = "The universal API for all AI standards you know."
 keywords = ["lm", "api", "ai", "llm", "slm"]
 categories = ["development-tools", "rust-patterns"]
-version = "0.5.0"
+version = "0.6.0"
 license = "MIT"
 authors = ["Bulat Sh. <t.me/fuderis>"]
 repository = "https://github.com/fuderis/anylm-rs"
@@ -24,9 +24,9 @@ heck = "0.4"
 [dependencies]
 anylm-schema = { version = "0.1.0", optional = true }
 
-atoman = { version = "0.14.0" }
+atoman = { version = "0.14.2" }
 macron = { version = "0.7.0", features = ["derive", "string"] }
-pearce = { version = "0.8.0", features = ["stream", "client"] }
+pearce = { version = "0.9.0", features = ["stream", "client"] }
 
 base64 = "0.22.1"
 bytes = "1.11.1"
