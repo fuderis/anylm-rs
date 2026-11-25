@@ -15,9 +15,12 @@ pub use google::GoogleCompletions;
 
 use crate::{api::*, chunk::*, options::Options, prelude::*};
 
-use atoman::{JoinHandle, Mutex, sync::mpsc};
 use pearce::{Client, Method, Proxy, Request};
 use std::{sync::Arc, time::Duration};
+use tokio::{
+    sync::{Mutex, mpsc},
+    task::JoinHandle,
+};
 
 /// Completions response stream reader.
 #[derive(Debug)]

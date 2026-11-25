@@ -1,10 +1,10 @@
 use super::*;
 use crate::api::*;
 
-use atoman::JoinHandle;
 use futures::StreamExt;
 use pearce::{Header, Method, Receiver};
 use std::collections::HashMap;
+use tokio::task::JoinHandle;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AnthropicCompletions(pub Completions);
@@ -92,14 +92,14 @@ impl AnthropicCompletions {
         tx: mpsc::UnboundedSender<Result<Chunk, DynError>>,
         messages: Arc<Mutex<Messages>>,
     ) -> JoinHandle<()> {
-        atoman::spawn(async move {
+        tokio::spawn(async move {
             let mut full_text = String::new();
             let mut tool_calls = vec![];
             let mut allocated_tool_ids = vec![];
             let mut tool_buffers = HashMap::<usize, PartialToolCall>::new();
 
             loop {
-                let res = atoman::select! {
+                let res = tokio::select! {
                     _ = tx.closed() => return,
                     res = reader.recv() => res,
                 };

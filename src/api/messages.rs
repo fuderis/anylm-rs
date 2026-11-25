@@ -1,8 +1,8 @@
 use super::{Content, Message, Role, Visibility};
 use crate::{Image, api::ToolCall, prelude::*};
 
-use atoman::{fs, io, sync::Mutex};
 use std::{path::Path, sync::Arc};
+use tokio::{fs, io, sync::Mutex};
 
 /// Request messages.
 #[derive(Default, Debug, Clone, Eq, PartialEq)]

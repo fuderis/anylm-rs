@@ -43,24 +43,25 @@ checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
 name = "anylm"
 version = "0.6.0"
 dependencies = [
- "anylm-schema 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "atoman",
+ "anylm-schema 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64",
  "bytes",
  "chrono",
  "futures",
- "macron 0.7.0",
+ "macron 0.8.1",
  "pearce",
  "regex",
  "serde",
  "serde_json",
  "tiktoken-rs",
+ "tokio",
 ]
 
 [[package]]
 name = "anylm-schema"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "heck 0.4.1",
  "proc-macro2",
  "quote",
  "syn 2.0.115",
@@ -68,10 +69,11 @@ dependencies = [
 
 [[package]]
 name = "anylm-schema"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a82828247d809c61d936c682a266f41bae9cdc6f3c5303885efec84c5180d79c"
+checksum = "92e84d738ea32d97514c3c9006f4e67cd14b7873fac3cb2248f13150c00d65a6"
 dependencies = [
+ "heck 0.4.1",
  "proc-macro2",
  "quote",
  "syn 2.0.115",
@@ -495,6 +497,12 @@ dependencies = [
 
 [[package]]
 name = "heck"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
+
+[[package]]
+name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
@@ -857,7 +865,7 @@ checksum = "9297cfc53bd7d4ac0d1f6c5304ba0d078fe6dc2d563839cf547aa741e2473fa4"
 dependencies = [
  "async-recursion",
  "async-trait",
- "macron-impl-display",
+ "macron-impl-display 0.4.1",
  "macron-impl-error",
  "macron-impl-from 0.2.0",
  "macron-impl-into 0.2.0",
@@ -873,7 +881,7 @@ checksum = "c0dba62b950e879f7822ef8444c36393b58eae54324a0902a57c16ca7ec1cc44"
 dependencies = [
  "async-recursion",
  "async-trait",
- "macron-impl-display",
+ "macron-impl-display 0.4.1",
  "macron-impl-error",
  "macron-impl-from 0.3.0",
  "macron-impl-into 0.3.0",
@@ -883,12 +891,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "macron"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6baaf0c91e508189aba7a29cdd6948bc1896bd22ef61ce28f1a7bb95697351fd"
+dependencies = [
+ "macron-impl-display 0.5.0",
+ "macron-impl-error",
+ "macron-impl-from 0.3.0",
+ "macron-impl-into 0.3.0",
+]
+
+[[package]]
 name = "macron-impl-display"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "393e9f27a7e855d825d71da316fdd38d898f9264f134686e2ddd08e6af011009"
 dependencies = [
- "heck",
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.115",
+]
+
+[[package]]
+name = "macron-impl-display"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef5b3dd1b2a2f29fa97dc14982dbce1f5d3fd1e5d2ae378be8c4bcf0986dcc81"
+dependencies = [
+ "heck 0.5.0",
  "proc-macro2",
  "quote",
  "syn 2.0.115",
@@ -1736,9 +1768,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.53.1"
+version = "1.54.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed"
+checksum = "b52fd3255258d26fac7264ab5a76b53c13367136dc011d3d6ad4f8ed070396a3"
 dependencies = [
  "bytes",
  "libc",
